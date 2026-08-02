@@ -10,9 +10,11 @@ import androidx.navigation.navArgument
 import com.iris.alarm.ui.dashboard.DashboardScreen
 import com.iris.alarm.ui.editor.AlarmEditorScreen
 import com.iris.alarm.ui.editor.AlarmEditorViewModel
+import com.iris.alarm.ui.settings.SettingsScreen
 
 private object Routes {
     const val DASHBOARD = "dashboard"
+    const val SETTINGS = "settings"
     const val EDITOR = "editor"
     const val EDITOR_WITH_ARG = "$EDITOR?${AlarmEditorViewModel.ARG_ALARM_ID}={${AlarmEditorViewModel.ARG_ALARM_ID}}"
 
@@ -34,7 +36,12 @@ fun IrisNavHost(modifier: Modifier = Modifier) {
                     navController.navigate(Routes.editor(AlarmEditorViewModel.NEW_ALARM_ID))
                 },
                 onEditAlarm = { id -> navController.navigate(Routes.editor(id)) },
+                onOpenSettings = { navController.navigate(Routes.SETTINGS) },
             )
+        }
+
+        composable(Routes.SETTINGS) {
+            SettingsScreen()
         }
 
         composable(

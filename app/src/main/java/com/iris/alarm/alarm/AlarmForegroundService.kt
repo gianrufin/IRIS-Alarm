@@ -20,7 +20,9 @@ import android.util.Log
 import androidx.core.app.ServiceCompat
 import androidx.core.content.getSystemService
 import com.iris.alarm.domain.model.Alarm
+import com.iris.alarm.domain.model.IrisSettings
 import com.iris.alarm.domain.repository.AlarmRepository
+import com.iris.alarm.domain.repository.SettingsRepository
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -44,12 +46,18 @@ class AlarmForegroundService : Service() {
 
     @Inject lateinit var repository: AlarmRepository
 
+    @Inject lateinit var settingsRepository: SettingsRepository
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private var mediaPlayer: MediaPlayer? = null
     private var focusRequest: AudioFocusRequest? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var autoSilenceJob: Job? = null
+    private var rampJob: Job? = null
+
+    /** Alarm-stream volume to put back when the alarm stops, if we raised it. */
+    private var restoreVolumeTo: Int? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -99,15 +107,19 @@ class AlarmForegroundService : Service() {
             _ringingAlarm.value = alarm
             promoteToForeground(alarm, alarmId)
 
-            startAudio(alarm?.soundUri?.let(Uri::parse))
-            if (alarm?.vibrate != false) startVibration()
-        }
+            val settings = runCatching { settingsRepository.current() }
+                .getOrDefault(IrisSettings())
 
-        autoSilenceJob?.cancel()
-        autoSilenceJob = scope.launch {
-            delay(AlarmContract.AUTO_SILENCE_MILLIS)
-            Log.i(TAG, "Auto-silencing alarm $alarmId after timeout")
-            stopRinging()
+            raiseVolumeFloor(settings.minimumVolumePercent)
+            startAudio(alarm?.soundUri?.let(Uri::parse), settings.volumeRampSeconds)
+            if (alarm?.vibrate != false) startVibration()
+
+            autoSilenceJob?.cancel()
+            autoSilenceJob = scope.launch {
+                delay(settings.autoSilenceMillis)
+                Log.i(TAG, "Auto-silencing alarm $alarmId after timeout")
+                stopRinging()
+            }
         }
     }
 
@@ -125,7 +137,36 @@ class AlarmForegroundService : Service() {
         )
     }
 
-    private fun startAudio(soundUri: Uri?) {
+    /**
+     * An alarm on a muted stream is no alarm at all, so the stream is lifted to
+     * the configured floor for the duration and restored in [stopRinging] — the
+     * user's own volume setting is borrowed, not overwritten.
+     */
+    private fun raiseVolumeFloor(percent: Int) {
+        if (percent <= 0) return
+        val audioManager = getSystemService<AudioManager>() ?: return
+
+        val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+        val floor = (max * percent / 100).coerceIn(1, max)
+        val current = audioManager.getStreamVolume(AudioManager.STREAM_ALARM)
+        if (current >= floor) return
+
+        // Raising the alarm stream is refused while some Do Not Disturb policies
+        // are active; ringing quietly beats crashing.
+        runCatching {
+            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, floor, 0)
+            restoreVolumeTo = current
+        }.onFailure { Log.w(TAG, "Could not raise the alarm stream volume", it) }
+    }
+
+    private fun restoreVolume() {
+        val previous = restoreVolumeTo ?: return
+        restoreVolumeTo = null
+        val audioManager = getSystemService<AudioManager>() ?: return
+        runCatching { audioManager.setStreamVolume(AudioManager.STREAM_ALARM, previous, 0) }
+    }
+
+    private fun startAudio(soundUri: Uri?, rampSeconds: Int) {
         val uri = soundUri
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
@@ -149,6 +190,7 @@ class AlarmForegroundService : Service() {
                 Log.e(TAG, "MediaPlayer error what=$what extra=$extra")
                 true
             }
+            if (rampSeconds > 0) setVolume(RAMP_START_VOLUME, RAMP_START_VOLUME)
             runCatching {
                 setDataSource(this@AlarmForegroundService, uri)
                 prepare()
@@ -157,6 +199,27 @@ class AlarmForegroundService : Service() {
                 Log.e(TAG, "Unable to play $uri", it)
                 release()
                 mediaPlayer = null
+            }
+        }
+
+        if (rampSeconds > 0 && mediaPlayer != null) startVolumeRamp(rampSeconds)
+    }
+
+    /**
+     * Fades in over [seconds] so the alarm wakes rather than startles. The job is
+     * cancelled with the scope, and every step re-reads [mediaPlayer] so a ramp
+     * that outlives the player cannot touch a released one.
+     */
+    private fun startVolumeRamp(seconds: Int) {
+        rampJob?.cancel()
+        rampJob = scope.launch {
+            val stepDelay = seconds * 1000L / RAMP_STEPS
+            for (step in 1..RAMP_STEPS) {
+                delay(stepDelay)
+                val volume = RAMP_START_VOLUME +
+                    (1f - RAMP_START_VOLUME) * (step.toFloat() / RAMP_STEPS)
+                val player = mediaPlayer ?: return@launch
+                runCatching { player.setVolume(volume, volume) }
             }
         }
     }
@@ -200,12 +263,14 @@ class AlarmForegroundService : Service() {
         val powerManager = getSystemService<PowerManager>() ?: return
         wakeLock = powerManager
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG)
-            .apply { acquire(AlarmContract.AUTO_SILENCE_MILLIS) }
+            .apply { acquire(AlarmContract.MAX_RINGING_MILLIS) }
     }
 
     private fun stopRinging() {
         autoSilenceJob?.cancel()
         autoSilenceJob = null
+        rampJob?.cancel()
+        rampJob = null
 
         mediaPlayer?.runCatching {
             if (isPlaying) stop()
@@ -213,6 +278,7 @@ class AlarmForegroundService : Service() {
         }
         mediaPlayer = null
         abandonAudioFocus()
+        restoreVolume()
         vibrator()?.cancel()
 
         wakeLock?.takeIf { it.isHeld }?.release()
@@ -234,6 +300,8 @@ class AlarmForegroundService : Service() {
     companion object {
         private const val TAG = "AlarmForegroundService"
         private const val WAKE_LOCK_TAG = "iris:alarm"
+        private const val RAMP_STEPS = 24
+        private const val RAMP_START_VOLUME = 0.08f
 
         private val _ringingAlarmId = MutableStateFlow(AlarmContract.NO_ALARM_ID)
 

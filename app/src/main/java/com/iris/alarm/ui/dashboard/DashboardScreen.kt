@@ -49,6 +49,7 @@ import kotlinx.coroutines.delay
 fun DashboardScreen(
     onAddAlarm: () -> Unit,
     onEditAlarm: (Long) -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
@@ -60,6 +61,7 @@ fun DashboardScreen(
         onFixExactAlarms = viewModel::openExactAlarmSettings,
         onAddAlarm = onAddAlarm,
         onEditAlarm = onEditAlarm,
+        onOpenSettings = onOpenSettings,
         onToggle = viewModel::toggle,
         modifier = modifier,
     )
@@ -72,6 +74,7 @@ private fun DashboardContent(
     onFixExactAlarms: () -> Unit,
     onAddAlarm: () -> Unit,
     onEditAlarm: (Long) -> Unit,
+    onOpenSettings: () -> Unit,
     onToggle: (Alarm, Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -82,7 +85,7 @@ private fun DashboardContent(
             .safeDrawingPadding()
             .padding(horizontal = 20.dp),
     ) {
-        Clock(nextAlarmSummary = state.nextAlarmSummary)
+        Clock(nextAlarmSummary = state.nextAlarmSummary, onOpenSettings = onOpenSettings)
 
         if (!exactAlarmsAllowed) {
             ExactAlarmWarning(onFix = onFixExactAlarms)
@@ -131,7 +134,7 @@ private fun DashboardContent(
 }
 
 @Composable
-private fun Clock(nextAlarmSummary: String?) {
+private fun Clock(nextAlarmSummary: String?, onOpenSettings: () -> Unit) {
     var now by remember { mutableStateOf(LocalTime.now()) }
 
     LaunchedEffect(Unit) {
@@ -144,11 +147,22 @@ private fun Clock(nextAlarmSummary: String?) {
     }
 
     Column(modifier = Modifier.padding(top = 40.dp, bottom = 32.dp)) {
-        Text(
-            text = "IRIS",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "IRIS",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = "SETTINGS",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .clickable(onClick = onOpenSettings)
+                    .padding(8.dp),
+            )
+        }
         Text(
             text = now.format(TIME_FORMAT),
             style = IrisType.Clock,
@@ -294,6 +308,7 @@ private fun DashboardPreview() {
             onFixExactAlarms = {},
             onAddAlarm = {},
             onEditAlarm = {},
+            onOpenSettings = {},
             onToggle = { _, _ -> },
         )
     }

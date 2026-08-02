@@ -14,8 +14,12 @@ object AlarmContract {
     /** Alarm id used when the service is started without a backing database row. */
     const val NO_ALARM_ID = -1L
 
-    /** Stop ringing after this long if the user never completes the challenge. */
-    const val AUTO_SILENCE_MILLIS = 10 * 60 * 1000L
+    /**
+     * Ceiling for the wake lock held while ringing. The actual auto-silence
+     * timeout is a user setting; this only has to outlast the longest of them so
+     * the lock is never released mid-alarm.
+     */
+    const val MAX_RINGING_MILLIS = 35 * 60 * 1000L
 
     /**
      * Request codes must not collide across pending-intent purposes, so each

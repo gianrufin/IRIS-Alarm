@@ -7,6 +7,7 @@ import com.iris.alarm.domain.model.Alarm
 import com.iris.alarm.domain.model.HuntTarget
 import com.iris.alarm.domain.model.VisionChallenge
 import com.iris.alarm.domain.repository.AlarmRepository
+import com.iris.alarm.domain.repository.SettingsRepository
 import com.iris.alarm.domain.usecase.DeleteAlarm
 import com.iris.alarm.domain.usecase.SaveAlarm
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,6 +22,7 @@ import kotlinx.coroutines.launch
 class AlarmEditorViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: AlarmRepository,
+    private val settingsRepository: SettingsRepository,
     private val saveAlarm: SaveAlarm,
     private val deleteAlarm: DeleteAlarm,
 ) : ViewModel() {
@@ -33,9 +35,14 @@ class AlarmEditorViewModel @Inject constructor(
     val isExisting: Boolean get() = alarmId != NEW_ALARM_ID
 
     init {
-        if (isExisting) {
-            viewModelScope.launch {
+        viewModelScope.launch {
+            if (isExisting) {
                 repository.getAlarm(alarmId)?.let { _draft.value = it }
+            } else {
+                // A new alarm starts on the user's preferred challenge; an edit
+                // must never have its saved challenge overwritten by the default.
+                val default = settingsRepository.current().defaultChallenge
+                _draft.value = _draft.value.copy(challenge = default)
             }
         }
     }

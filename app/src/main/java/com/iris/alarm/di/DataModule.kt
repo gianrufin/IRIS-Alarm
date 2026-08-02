@@ -5,8 +5,10 @@ import androidx.room.Room
 import com.iris.alarm.data.local.AlarmDao
 import com.iris.alarm.data.local.IrisDatabase
 import com.iris.alarm.data.repository.AlarmRepositoryImpl
+import com.iris.alarm.data.settings.SettingsRepositoryImpl
 import com.iris.alarm.domain.model.DeviceCapabilities
 import com.iris.alarm.domain.repository.AlarmRepository
+import com.iris.alarm.domain.repository.SettingsRepository
 import com.iris.alarm.vision.AndroidDeviceCapabilities
 import com.iris.alarm.vision.LumenMonitor
 import dagger.Binds
@@ -52,4 +54,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindAlarmRepository(impl: AlarmRepositoryImpl): AlarmRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSettingsRepository(impl: SettingsRepositoryImpl): SettingsRepository
 }

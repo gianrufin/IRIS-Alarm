@@ -72,6 +72,11 @@ Notes on the pieces that are easy to get wrong:
   only exit, other than the 10-minute auto-silence timeout.
 - **Audio.** `USAGE_ALARM` attributes, looping `MediaPlayer`, transient audio
   focus that is never yielded. If focus is refused the alarm rings anyway.
+- **Volume.** An alarm on a muted stream never wakes anyone, so the alarm stream
+  is raised to a configurable floor while ringing and restored to whatever the
+  user had when it stops. Volume fades in from near-silence over a configurable
+  ramp. Raising the stream is refused under some Do Not Disturb policies; that
+  is caught and the alarm rings at whatever volume it can.
 - **Back is disabled** on the challenge screen (it sends the task to the back
   instead), so the alarm cannot be orphaned behind the lock screen.
 
@@ -84,6 +89,34 @@ All in `domain/model/VisionChallenge.kt` (`ChallengeThresholds`):
 | Smile (front camera) | `smilingProbability > 0.8` and both eyes open `> 0.7`, held 3s |
 | Object hunt (rear camera) | target label confidence `> 0.8` across 5 consecutive frames |
 | Lumen | `> 500 lux` sustained for 1.5s |
+
+## Settings
+
+`SettingsScreen`, backed by DataStore:
+
+| Setting | Default | Why |
+| --- | --- | --- |
+| Default challenge | Mirror Iris | Pre-selects the challenge for new alarms |
+| Auto-silence | 10 min | How long an unsolved alarm rings before giving up |
+| Volume ramp | 15 s | Fade in from near-silence, so the alarm wakes rather than startles |
+| Minimum volume | 60% | Floor the alarm stream is raised to while ringing, then restored |
+
+## Tests
+
+```bash
+./gradlew :app:testDebugUnitTest      # 17 tests, no device needed
+./gradlew :app:connectedDebugAndroidTest   # needs a device or emulator
+```
+
+JVM tests cover the scheduling maths, the Room entity round-trip, and challenge
+resolution across every missing-hardware combination — the pure logic was kept
+free of Android types precisely so these stay fast.
+
+Instrumented tests cover what only a real framework can answer: that scheduling
+registers a broadcast `AlarmManager` can deliver and cancelling removes it, the
+Room round-trip against real SQLite, that the challenge Activity renders and
+survives a back press, and that every `HuntTarget` exists in the shipped model
+vocabulary.
 
 ## Build
 
@@ -140,11 +173,20 @@ than a skipped challenge.
 Camera analysis runs on its own executor with `KEEP_ONLY_LATEST` backpressure,
 and every ML Kit client is closed when the challenge screen goes away.
 
+## Not yet verified on hardware
+
+Everything here is compile-verified and covered by the tests above, but no part
+of it has run on a phone. The things that can only fail on a device:
+
+- Whether the full-screen intent actually draws over a secured keyguard. Several
+  OEMs (Xiaomi, Samsung and others) gate this behind extra per-app permissions.
+- ML Kit smile probabilities in a dark bedroom at 6am — plausibly the hardest
+  real-world case this app has.
+- Whether the alarm is audible in practice, and whether raising the stream
+  volume is refused by the Do Not Disturb policy in use.
+
 ## Next steps
 
-- Instrumented tests for the ringing flow (fire an alarm, assert the challenge
-  Activity shows over the keyguard).
-- A settings screen: default challenge, auto-silence duration, gradual volume
-  ramp.
-- Volume handling: an alarm at zero `STREAM_ALARM` volume is silent, and there
-  is no gradual ramp.
+- Snooze-free is the point, but there is no "I am awake, stop for now" state for
+  a user who solves the challenge and falls back asleep.
+- Per-alarm overrides for the global volume and auto-silence settings.
