@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">IRIS</string>
+
+    <string name="channel_ringing_name">Ringing alarms</string>
+    <string name="channel_ringing_description">Shown while an IRIS alarm is ringing and waiting for its challenge.</string>
+
+    <string name="notification_ringing_title">IRIS ALARM</string>
+    <string name="notification_ringing_fallback_challenge">Mirror Iris</string>
+    <string name="notification_ringing_text">Tap to complete %1$s</string>
+</resources>

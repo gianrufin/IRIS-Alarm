@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Compose owns all styling; this theme only sets the pitch-black window
+         background (so there is no white flash before first frame) and makes the
+         system bars transparent for the edge-to-edge layout. -->
+    <style name="Theme.Iris" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/iris_black</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode" tools:targetApi="27">shortEdges</item>
+    </style>
+</resources>
