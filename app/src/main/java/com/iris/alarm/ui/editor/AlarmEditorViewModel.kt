@@ -59,6 +59,11 @@ class AlarmEditorViewModel @Inject constructor(
 
     fun setSound(uri: String?) = update { it.copy(soundUri = uri) }
 
+    /** Null restores "follow the global setting" for this alarm. */
+    fun setAutoSilenceOverride(minutes: Int?) = update { it.copy(autoSilenceMinutes = minutes) }
+
+    fun setVolumeRampOverride(seconds: Int?) = update { it.copy(volumeRampSeconds = seconds) }
+
     fun toggleDay(day: DayOfWeek) = update { alarm ->
         val days = alarm.repeatDays.toMutableSet()
         if (!days.add(day)) days.remove(day)

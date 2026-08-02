@@ -6,6 +6,7 @@ import com.iris.alarm.alarm.AlarmScheduler
 import com.iris.alarm.domain.model.Alarm
 import com.iris.alarm.domain.usecase.DeleteAlarm
 import com.iris.alarm.domain.usecase.ObserveAlarms
+import com.iris.alarm.domain.repository.WakeCheckRepository
 import com.iris.alarm.domain.usecase.SetAlarmEnabled
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Duration
@@ -14,6 +15,7 @@ import java.time.ZoneId
 import java.time.Instant
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -23,6 +25,8 @@ data class DashboardUiState(
     val alarms: List<Alarm> = emptyList(),
     /** "RINGS IN 7H 12M", or null when nothing is armed. */
     val nextAlarmSummary: String? = null,
+    /** "WAKE CHECK IN 5 MIN", or null when no check is pending. */
+    val wakeCheckSummary: String? = null,
 )
 
 @HiltViewModel
@@ -30,11 +34,20 @@ class DashboardViewModel @Inject constructor(
     observeAlarms: ObserveAlarms,
     private val setAlarmEnabled: SetAlarmEnabled,
     private val deleteAlarm: DeleteAlarm,
+    private val wakeCheckRepository: WakeCheckRepository,
     private val scheduler: AlarmScheduler,
 ) : ViewModel() {
 
-    val uiState: StateFlow<DashboardUiState> = observeAlarms()
-        .map { alarms -> DashboardUiState(alarms, summariseNext(alarms)) }
+    val uiState: StateFlow<DashboardUiState> = combine(
+        observeAlarms(),
+        wakeCheckRepository.pendingAt,
+    ) { alarms, wakeCheckAt ->
+        DashboardUiState(
+            alarms = alarms,
+            nextAlarmSummary = summariseNext(alarms),
+            wakeCheckSummary = summariseWakeCheck(wakeCheckAt),
+        )
+    }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -52,6 +65,23 @@ class DashboardViewModel @Inject constructor(
 
     fun delete(alarm: Alarm) {
         viewModelScope.launch { deleteAlarm(alarm) }
+    }
+
+    /** "I'm up" — cancels the pending follow-up check. */
+    fun confirmAwake() {
+        scheduler.cancelWakeCheck()
+        viewModelScope.launch { wakeCheckRepository.clear() }
+    }
+
+    private fun summariseWakeCheck(atMillis: Long?): String? {
+        if (atMillis == null) return null
+        val minutes = ((atMillis - System.currentTimeMillis()) / 60_000L).toInt()
+        return when {
+            // Already due but not yet fired: the ring is imminent either way.
+            minutes <= 0 -> "WAKE CHECK DUE"
+            minutes == 1 -> "WAKE CHECK IN 1 MIN"
+            else -> "WAKE CHECK IN $minutes MIN"
+        }
     }
 
     private fun summariseNext(alarms: List<Alarm>): String? {

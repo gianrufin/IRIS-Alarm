@@ -23,6 +23,7 @@ import com.iris.alarm.domain.model.Alarm
 import com.iris.alarm.domain.model.IrisSettings
 import com.iris.alarm.domain.repository.AlarmRepository
 import com.iris.alarm.domain.repository.SettingsRepository
+import com.iris.alarm.domain.repository.WakeCheckRepository
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -48,6 +49,10 @@ class AlarmForegroundService : Service() {
 
     @Inject lateinit var settingsRepository: SettingsRepository
 
+    @Inject lateinit var wakeCheckRepository: WakeCheckRepository
+
+    @Inject lateinit var scheduler: AlarmScheduler
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private var mediaPlayer: MediaPlayer? = null
@@ -58,6 +63,9 @@ class AlarmForegroundService : Service() {
 
     /** Alarm-stream volume to put back when the alarm stops, if we raised it. */
     private var restoreVolumeTo: Int? = null
+
+    /** True when this ring is the follow-up check rather than the alarm itself. */
+    private var isWakeCheck = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -73,10 +81,15 @@ class AlarmForegroundService : Service() {
                     AlarmContract.EXTRA_ALARM_ID,
                     AlarmContract.NO_ALARM_ID,
                 )
+                isWakeCheck = intent.getBooleanExtra(AlarmContract.EXTRA_WAKE_CHECK, false)
+                _ringingIsWakeCheck.value = isWakeCheck
                 startRinging(alarmId)
             }
 
-            AlarmContract.ACTION_DISMISS -> stopRinging()
+            AlarmContract.ACTION_DISMISS -> {
+                scheduleWakeCheckIfEnabled()
+                stopRinging()
+            }
 
             else -> {
                 // Restarted by the system with a null intent and no alarm context —
@@ -109,6 +122,7 @@ class AlarmForegroundService : Service() {
 
             val settings = runCatching { settingsRepository.current() }
                 .getOrDefault(IrisSettings())
+                .effectiveFor(alarm)
 
             raiseVolumeFloor(settings.minimumVolumePercent)
             startAudio(alarm?.soundUri?.let(Uri::parse), settings.volumeRampSeconds)
@@ -266,6 +280,29 @@ class AlarmForegroundService : Service() {
             .apply { acquire(AlarmContract.MAX_RINGING_MILLIS) }
     }
 
+    /**
+     * A solved challenge proves the user was awake for a few seconds, not that
+     * they stayed up. When the wake check is enabled, the same challenge is
+     * re-armed for later and only an explicit "I'm up" cancels it.
+     *
+     * A wake check never schedules another one — that would be an endless chain.
+     */
+    private fun scheduleWakeCheckIfEnabled() {
+        if (isWakeCheck) return
+        val alarmId = _ringingAlarmId.value
+        if (alarmId == AlarmContract.NO_ALARM_ID) return
+
+        scope.launch {
+            val minutes = runCatching { settingsRepository.current().wakeCheckMinutes }
+                .getOrDefault(0)
+            if (minutes <= 0) return@launch
+
+            val firesAt = System.currentTimeMillis() + minutes * 60_000L
+            scheduler.scheduleWakeCheck(alarmId, firesAt)
+            wakeCheckRepository.set(alarmId, firesAt)
+        }
+    }
+
     private fun stopRinging() {
         autoSilenceJob?.cancel()
         autoSilenceJob = null
@@ -286,6 +323,8 @@ class AlarmForegroundService : Service() {
 
         _ringingAlarmId.value = AlarmContract.NO_ALARM_ID
         _ringingAlarm.value = null
+        isWakeCheck = false
+        _ringingIsWakeCheck.value = false
 
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -310,6 +349,11 @@ class AlarmForegroundService : Service() {
 
         private val _ringingAlarm = MutableStateFlow<Alarm?>(null)
         val ringingAlarm: StateFlow<Alarm?> = _ringingAlarm.asStateFlow()
+
+        private val _ringingIsWakeCheck = MutableStateFlow(false)
+
+        /** True while the current ring is a follow-up check, not the alarm itself. */
+        val ringingIsWakeCheck: StateFlow<Boolean> = _ringingIsWakeCheck.asStateFlow()
 
         /** Called by the challenge UI once a vision/sensor task has been satisfied. */
         fun dismiss(context: Context) {

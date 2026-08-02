@@ -3,8 +3,10 @@ package com.iris.alarm.domain.usecase
 import com.iris.alarm.alarm.AlarmScheduler
 import com.iris.alarm.domain.model.Alarm
 import com.iris.alarm.domain.repository.AlarmRepository
+import com.iris.alarm.domain.repository.WakeCheckRepository
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
 /**
  * Persisting an alarm and arming it are one operation — splitting them is how a
@@ -35,9 +37,16 @@ class SetAlarmEnabled @Inject constructor(
 class DeleteAlarm @Inject constructor(
     private val repository: AlarmRepository,
     private val scheduler: AlarmScheduler,
+    private val wakeCheckRepository: WakeCheckRepository,
 ) {
     suspend operator fun invoke(alarm: Alarm) {
         scheduler.cancel(alarm.id)
+        // A check outliving its alarm would ring with nothing behind it, so the
+        // deletion takes the pending check with it.
+        if (wakeCheckRepository.pendingAlarmId.first() == alarm.id) {
+            scheduler.cancelWakeCheck()
+            wakeCheckRepository.clear()
+        }
         repository.delete(alarm)
     }
 }

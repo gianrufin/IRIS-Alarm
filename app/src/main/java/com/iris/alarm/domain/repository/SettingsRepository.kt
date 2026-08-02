@@ -17,4 +17,6 @@ interface SettingsRepository {
     suspend fun setVolumeRampSeconds(seconds: Int)
 
     suspend fun setMinimumVolumePercent(percent: Int)
+
+    suspend fun setWakeCheckMinutes(minutes: Int)
 }

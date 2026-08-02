@@ -38,4 +38,8 @@ class SettingsViewModel @Inject constructor(
     fun setMinimumVolumePercent(percent: Int) {
         viewModelScope.launch { repository.setMinimumVolumePercent(percent) }
     }
+
+    fun setWakeCheckMinutes(minutes: Int) {
+        viewModelScope.launch { repository.setWakeCheckMinutes(minutes) }
+    }
 }

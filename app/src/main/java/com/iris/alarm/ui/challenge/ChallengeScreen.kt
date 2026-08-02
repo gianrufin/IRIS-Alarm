@@ -35,6 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
+import com.iris.alarm.alarm.AlarmForegroundService
 import com.iris.alarm.domain.model.Alarm
 import com.iris.alarm.domain.model.ChallengeThresholds
 import com.iris.alarm.domain.model.HuntTarget
@@ -66,6 +67,7 @@ fun ChallengeScreen(
     val challenge = state.challenge
     val progress = state.progress
     val cameraPermission = rememberPermissionState(android.Manifest.permission.CAMERA)
+    val isWakeCheck by AlarmForegroundService.ringingIsWakeCheck.collectAsStateWithLifecycle()
     val needsCamera = challenge != VisionChallenge.LUMEN
 
     LaunchedEffect(alarm?.id, alarm?.challenge) {
@@ -101,7 +103,11 @@ fun ChallengeScreen(
             .padding(horizontal = 20.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        Header(alarm = alarm, challenge = challenge, notice = state.notice)
+        Header(
+            alarm = alarm,
+            challenge = challenge,
+            notice = state.notice ?: "WAKE CHECK".takeIf { isWakeCheck },
+        )
 
         Box(
             modifier = Modifier

@@ -40,11 +40,13 @@ class AlarmSchedulerTest {
     fun setUp() {
         scheduler = AlarmScheduler(context)
         scheduler.cancel(alarm.id)
+        scheduler.cancelWakeCheck()
     }
 
     @After
     fun tearDown() {
         scheduler.cancel(alarm.id)
+        scheduler.cancelWakeCheck()
     }
 
     @Test
@@ -67,6 +69,45 @@ class AlarmSchedulerTest {
 
         assertNull("A disabled alarm must not stay armed", existingPendingIntent())
     }
+
+    @Test
+    fun theWakeCheckIsScheduledAndCancelledIndependentlyOfTheAlarm() {
+        scheduler.schedule(alarm)
+
+        scheduler.scheduleWakeCheck(alarm.id, System.currentTimeMillis() + 5 * 60_000L)
+        assertNotNull("scheduleWakeCheck() did not register a check", wakeCheckPendingIntent())
+
+        scheduler.cancelWakeCheck()
+
+        assertNull("cancelWakeCheck() left the check armed", wakeCheckPendingIntent())
+        assertNotNull(
+            "Cancelling the check must not disarm the alarm itself",
+            existingPendingIntent(),
+        )
+    }
+
+    /**
+     * The check uses a fixed request code, so scheduling a second one replaces
+     * the first rather than stacking a second ring.
+     */
+    @Test
+    fun schedulingASecondWakeCheckReplacesTheFirst() {
+        scheduler.scheduleWakeCheck(alarm.id, System.currentTimeMillis() + 5 * 60_000L)
+        scheduler.scheduleWakeCheck(alarm.id, System.currentTimeMillis() + 10 * 60_000L)
+
+        scheduler.cancelWakeCheck()
+
+        assertNull("A second check outlived the cancel", wakeCheckPendingIntent())
+    }
+
+    private fun wakeCheckPendingIntent(): PendingIntent? = PendingIntent.getBroadcast(
+        context,
+        AlarmContract.WAKE_CHECK_REQUEST_CODE,
+        Intent(context, AlarmReceiver::class.java).apply {
+            action = AlarmContract.ACTION_WAKE_CHECK
+        },
+        PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
+    )
 
     /** Non-null only when a matching PendingIntent is already registered. */
     private fun existingPendingIntent(): PendingIntent? = PendingIntent.getBroadcast(

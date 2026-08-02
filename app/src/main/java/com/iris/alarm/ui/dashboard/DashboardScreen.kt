@@ -1,6 +1,7 @@
 package com.iris.alarm.ui.dashboard
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -63,6 +65,7 @@ fun DashboardScreen(
         onEditAlarm = onEditAlarm,
         onOpenSettings = onOpenSettings,
         onToggle = viewModel::toggle,
+        onConfirmAwake = viewModel::confirmAwake,
         modifier = modifier,
     )
 }
@@ -76,6 +79,7 @@ private fun DashboardContent(
     onEditAlarm: (Long) -> Unit,
     onOpenSettings: () -> Unit,
     onToggle: (Alarm, Boolean) -> Unit,
+    onConfirmAwake: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -89,6 +93,10 @@ private fun DashboardContent(
 
         if (!exactAlarmsAllowed) {
             ExactAlarmWarning(onFix = onFixExactAlarms)
+        }
+
+        state.wakeCheckSummary?.let { summary ->
+            WakeCheckBanner(summary = summary, onConfirmAwake = onConfirmAwake)
         }
 
         Box(modifier = Modifier.weight(1f)) {
@@ -236,6 +244,39 @@ private fun AlarmRow(alarm: Alarm, onClick: () -> Unit, onToggle: (Boolean) -> U
     }
 }
 
+/**
+ * Shown between a solved challenge and the follow-up ring. "I'M UP" is the only
+ * way to cancel it, which is the whole point — the check exists precisely for
+ * the user who dismissed the alarm and went back to sleep.
+ */
+@Composable
+private fun WakeCheckBanner(summary: String, onConfirmAwake: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(28.dp))
+            .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(28.dp))
+            .padding(horizontal = 20.dp, vertical = 16.dp)
+            .padding(bottom = 0.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = summary,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = "I'M UP",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier
+                .clickable(onClick = onConfirmAwake)
+                .padding(8.dp),
+        )
+    }
+}
+
 @Composable
 private fun ExactAlarmWarning(onFix: () -> Unit) {
     Column(
@@ -303,6 +344,7 @@ private fun DashboardPreview() {
                     ),
                 ),
                 nextAlarmSummary = "RINGS IN 7H 12M",
+                wakeCheckSummary = "WAKE CHECK IN 5 MIN",
             ),
             exactAlarmsAllowed = true,
             onFixExactAlarms = {},
@@ -310,6 +352,7 @@ private fun DashboardPreview() {
             onEditAlarm = {},
             onOpenSettings = {},
             onToggle = { _, _ -> },
+            onConfirmAwake = {},
         )
     }
 }

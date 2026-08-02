@@ -22,6 +22,8 @@ class AlarmEntityTest {
             soundUri = "content://media/alarm/7",
             vibrate = false,
             enabled = true,
+            autoSilenceMinutes = 30,
+            volumeRampSeconds = 0,
         )
 
         assertEquals(alarm, alarm.toEntity().toDomain())

@@ -73,6 +73,7 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="com.iris.alarm.action.ALARM_FIRED" />
+                <action android:name="com.iris.alarm.action.WAKE_CHECK" />
             </intent-filter>
         </receiver>
 

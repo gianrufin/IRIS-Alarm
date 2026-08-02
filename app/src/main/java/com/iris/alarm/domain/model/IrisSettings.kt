@@ -23,16 +23,35 @@ data class IrisSettings(
      * puts it back afterwards. 0 disables the behaviour entirely.
      */
     val minimumVolumePercent: Int = DEFAULT_MINIMUM_VOLUME_PERCENT,
+
+    /**
+     * Minutes after a solved challenge to ring again unless the user has
+     * confirmed they are up. Solving a challenge proves you were awake for ten
+     * seconds, not that you stayed awake. 0 disables the check.
+     */
+    val wakeCheckMinutes: Int = DEFAULT_WAKE_CHECK_MINUTES,
 ) {
     val autoSilenceMillis: Long get() = autoSilenceMinutes * 60_000L
+
+    /**
+     * Folds an alarm's per-alarm overrides over the global settings. Everything
+     * downstream reads one settings object and never has to know which value
+     * came from where.
+     */
+    fun effectiveFor(alarm: Alarm?): IrisSettings = copy(
+        autoSilenceMinutes = alarm?.autoSilenceMinutes ?: autoSilenceMinutes,
+        volumeRampSeconds = alarm?.volumeRampSeconds ?: volumeRampSeconds,
+    )
 
     companion object {
         const val DEFAULT_AUTO_SILENCE_MINUTES = 10
         const val DEFAULT_RAMP_SECONDS = 15
         const val DEFAULT_MINIMUM_VOLUME_PERCENT = 60
+        const val DEFAULT_WAKE_CHECK_MINUTES = 0
 
         val AUTO_SILENCE_CHOICES = listOf(1, 5, 10, 15, 30)
         val RAMP_CHOICES = listOf(0, 5, 15, 30)
         val MINIMUM_VOLUME_CHOICES = listOf(0, 40, 60, 80, 100)
+        val WAKE_CHECK_CHOICES = listOf(0, 3, 5, 10, 15)
     }
 }

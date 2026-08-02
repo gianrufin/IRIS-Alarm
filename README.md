@@ -90,6 +90,18 @@ All in `domain/model/VisionChallenge.kt` (`ChallengeThresholds`):
 | Object hunt (rear camera) | target label confidence `> 0.8` across 5 consecutive frames |
 | Lumen | `> 500 lux` sustained for 1.5s |
 
+## The wake check
+
+Solving a challenge proves the user was awake for a few seconds, not that they
+stayed awake — the obvious failure mode of a snooze-free alarm. When the wake
+check is enabled, dismissing an alarm arms the same challenge again N minutes
+later, and only an explicit "I'M UP" on the dashboard cancels it.
+
+A wake check never schedules another one, or it would be an endless chain. It
+uses a single fixed request code, so a second check replaces the first rather
+than stacking. Deleting an alarm cancels a check belonging to it, so a check can
+never outlive the alarm behind it.
+
 ## Settings
 
 `SettingsScreen`, backed by DataStore:
@@ -100,23 +112,41 @@ All in `domain/model/VisionChallenge.kt` (`ChallengeThresholds`):
 | Auto-silence | 10 min | How long an unsolved alarm rings before giving up |
 | Volume ramp | 15 s | Fade in from near-silence, so the alarm wakes rather than startles |
 | Minimum volume | 60% | Floor the alarm stream is raised to while ringing, then restored |
+| Wake check | Off | Ring again this long after a solved challenge |
+
+Auto-silence and volume ramp can be overridden per alarm — a weekday alarm can
+ring for half an hour without every alarm doing so. `IrisSettings.effectiveFor`
+folds an alarm's overrides over the globals, so everything downstream reads one
+settings object and never has to know which value came from where. Null means
+"follow the setting", and the editor offers DEFAULT as a real selectable value
+so an override can be taken back off.
+
+## Database
+
+Schema v2. The v1 → v2 migration adds the two nullable override columns, leaving
+existing alarms following the global settings exactly as before. There is
+deliberately no `fallbackToDestructiveMigration`: wiping someone's alarms on an
+upgrade means they do not wake up. `IrisDatabaseMigrationTest` asserts rows
+survive the upgrade.
 
 ## Tests
 
 ```bash
-./gradlew :app:testDebugUnitTest      # 17 tests, no device needed
+./gradlew :app:testDebugUnitTest      # 24 tests, no device needed
 ./gradlew :app:connectedDebugAndroidTest   # needs a device or emulator
 ```
 
-JVM tests cover the scheduling maths, the Room entity round-trip, and challenge
-resolution across every missing-hardware combination — the pure logic was kept
-free of Android types precisely so these stay fast.
+JVM tests cover the scheduling maths, the Room entity round-trip, challenge
+resolution across every missing-hardware combination, and the per-alarm settings
+fold — the pure logic was kept free of Android types precisely so these stay
+fast.
 
 Instrumented tests cover what only a real framework can answer: that scheduling
-registers a broadcast `AlarmManager` can deliver and cancelling removes it, the
-Room round-trip against real SQLite, that the challenge Activity renders and
-survives a back press, and that every `HuntTarget` exists in the shipped model
-vocabulary.
+registers a broadcast `AlarmManager` can deliver and cancelling removes it, that
+the wake check arms and cancels independently of the alarm, the Room round-trip
+against real SQLite, the v1 → v2 migration, that the challenge Activity renders
+and survives a back press, and that every `HuntTarget` exists in the shipped
+model vocabulary.
 
 ## Build
 
@@ -187,6 +217,10 @@ of it has run on a phone. The things that can only fail on a device:
 
 ## Next steps
 
-- Snooze-free is the point, but there is no "I am awake, stop for now" state for
-  a user who solves the challenge and falls back asleep.
-- Per-alarm overrides for the global volume and auto-silence settings.
+The feature set is complete. What is left is a device pass against the list
+above, and then judgement calls that want real use to answer:
+
+- Whether the object-hunt vocabulary should grow beyond five targets, and which
+  ones are findable in a bedroom at 6am.
+- Whether the wake check should escalate — a second check, or a longer challenge
+  — for someone who keeps going back to sleep.

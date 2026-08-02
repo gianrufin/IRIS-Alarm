@@ -68,6 +68,28 @@ class AlarmScheduler @Inject constructor(
         }
     }
 
+    /**
+     * Rings [alarmId]'s challenge again at [triggerAt] unless the user confirms
+     * they are up first. Replaces any check already pending.
+     */
+    @SuppressLint("MissingPermission")
+    fun scheduleWakeCheck(alarmId: Long, triggerAt: Long) {
+        val pendingIntent = wakeCheckPendingIntent(alarmId)
+        if (canScheduleExact) {
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                triggerAt,
+                pendingIntent,
+            )
+        } else {
+            alarmManager.setWindow(AlarmManager.RTC_WAKEUP, triggerAt, WINDOW_MILLIS, pendingIntent)
+        }
+    }
+
+    fun cancelWakeCheck() {
+        alarmManager.cancel(wakeCheckPendingIntent(alarmId = AlarmContract.NO_ALARM_ID))
+    }
+
     fun cancel(alarmId: Long) {
         alarmManager.cancel(triggerPendingIntent(alarmId, mutable = false))
     }
@@ -84,6 +106,25 @@ class AlarmScheduler @Inject constructor(
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(intent)
+    }
+
+    /**
+     * Extras are not part of PendingIntent equality, so the fixed request code
+     * alone identifies the pending check — [cancelWakeCheck] matches whatever
+     * alarm id was used to schedule it.
+     */
+    private fun wakeCheckPendingIntent(alarmId: Long): PendingIntent {
+        val intent = Intent(context, AlarmReceiver::class.java).apply {
+            action = AlarmContract.ACTION_WAKE_CHECK
+            putExtra(AlarmContract.EXTRA_ALARM_ID, alarmId)
+            putExtra(AlarmContract.EXTRA_WAKE_CHECK, true)
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            AlarmContract.WAKE_CHECK_REQUEST_CODE,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
     }
 
     private fun triggerPendingIntent(alarmId: Long, mutable: Boolean): PendingIntent {

@@ -31,6 +31,7 @@ import com.iris.alarm.ui.theme.IrisTheme
 
 @Composable
 fun SettingsScreen(
+    onBack: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
@@ -42,6 +43,8 @@ fun SettingsScreen(
         onAutoSilence = viewModel::setAutoSilenceMinutes,
         onRamp = viewModel::setVolumeRampSeconds,
         onMinimumVolume = viewModel::setMinimumVolumePercent,
+        onWakeCheck = viewModel::setWakeCheckMinutes,
+        onBack = onBack,
         modifier = modifier,
     )
 }
@@ -53,6 +56,8 @@ private fun SettingsContent(
     onAutoSilence: (Int) -> Unit,
     onRamp: (Int) -> Unit,
     onMinimumVolume: (Int) -> Unit,
+    onWakeCheck: (Int) -> Unit,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -64,12 +69,21 @@ private fun SettingsContent(
             .padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(36.dp),
     ) {
-        Text(
-            text = "SETTINGS",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(top = 40.dp),
-        )
+        Column(modifier = Modifier.padding(top = 40.dp)) {
+            Text(
+                text = "BACK",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .clickable(onClick = onBack)
+                    .padding(vertical = 8.dp),
+            )
+            Text(
+                text = "SETTINGS",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+        }
 
         Setting(
             title = "DEFAULT CHALLENGE",
@@ -117,6 +131,20 @@ private fun SettingsContent(
                 selected = settings.minimumVolumePercent,
                 label = { if (it == 0) "DON'T TOUCH" else "$it%" },
                 onSelect = onMinimumVolume,
+            )
+        }
+
+        Setting(
+            title = "WAKE CHECK",
+            detail = "Ring again this long after a solved challenge, unless you " +
+                "tap I'M UP. Solving a challenge proves you were awake for ten " +
+                "seconds, not that you stayed awake.",
+        ) {
+            ChoiceRow(
+                options = IrisSettings.WAKE_CHECK_CHOICES,
+                selected = settings.wakeCheckMinutes,
+                label = { if (it == 0) "OFF" else "$it MIN" },
+                onSelect = onWakeCheck,
             )
         }
 
@@ -202,6 +230,8 @@ private fun SettingsPreview() {
             onAutoSilence = {},
             onRamp = {},
             onMinimumVolume = {},
+            onWakeCheck = {},
+            onBack = {},
         )
     }
 }

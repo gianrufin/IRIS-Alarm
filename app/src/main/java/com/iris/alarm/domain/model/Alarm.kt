@@ -18,6 +18,13 @@ data class Alarm(
     val soundUri: String? = null,
     val vibrate: Boolean = true,
     val enabled: Boolean = true,
+    /**
+     * Per-alarm overrides of the global [IrisSettings]. Null means "follow the
+     * setting" — a weekday alarm can be given a longer auto-silence without
+     * making every alarm ring for half an hour.
+     */
+    val autoSilenceMinutes: Int? = null,
+    val volumeRampSeconds: Int? = null,
 ) {
     val time: LocalTime get() = LocalTime.of(hour, minute)
 

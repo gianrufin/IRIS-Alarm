@@ -41,7 +41,7 @@ fun IrisNavHost(modifier: Modifier = Modifier) {
         }
 
         composable(Routes.SETTINGS) {
-            SettingsScreen()
+            SettingsScreen(onBack = { navController.popBackStack() })
         }
 
         composable(

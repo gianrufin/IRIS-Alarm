@@ -46,6 +46,7 @@ import androidx.core.content.IntentCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iris.alarm.domain.model.HuntTarget
+import com.iris.alarm.domain.model.IrisSettings
 import com.iris.alarm.domain.model.VisionChallenge
 import com.iris.alarm.ui.components.NumberWheel
 import com.iris.alarm.ui.components.challengeIcon
@@ -96,12 +97,27 @@ fun AlarmEditorScreen(
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(32.dp),
         ) {
-            Text(
-                text = if (viewModel.isExisting) "EDIT ALARM" else "NEW ALARM",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 32.dp),
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 32.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = if (viewModel.isExisting) "EDIT ALARM" else "NEW ALARM",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = "CANCEL",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .clickable(onClick = onDone)
+                        .padding(8.dp),
+                )
+            }
 
             TimeSelector(
                 hour = draft.hour,
@@ -165,6 +181,24 @@ fun AlarmEditorScreen(
                     onClick = {
                         soundPicker.launch(ringtonePickerIntent(draft.soundUri))
                     },
+                )
+            }
+
+            Section(title = "AUTO-SILENCE") {
+                OverrideRow(
+                    options = IrisSettings.AUTO_SILENCE_CHOICES,
+                    selected = draft.autoSilenceMinutes,
+                    label = { "$it MIN" },
+                    onSelect = viewModel::setAutoSilenceOverride,
+                )
+            }
+
+            Section(title = "VOLUME RAMP") {
+                OverrideRow(
+                    options = IrisSettings.RAMP_CHOICES,
+                    selected = draft.volumeRampSeconds,
+                    label = { if (it == 0) "OFF" else "$it SEC" },
+                    onSelect = viewModel::setVolumeRampOverride,
                 )
             }
 
@@ -377,6 +411,65 @@ private fun TargetPicker(selected: HuntTarget, onSelect: (HuntTarget) -> Unit) {
                 )
             }
         }
+    }
+}
+
+/**
+ * A per-alarm override of a global setting. "DEFAULT" is a real, selectable
+ * value rather than the absence of one, so the alarm can be put back to
+ * following the setting after an override has been chosen.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun OverrideRow(
+    options: List<Int>,
+    selected: Int?,
+    label: (Int) -> String,
+    onSelect: (Int?) -> Unit,
+) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Chip(text = "DEFAULT", selected = selected == null, onClick = { onSelect(null) })
+        options.forEach { option ->
+            Chip(
+                text = label(option),
+                selected = selected == option,
+                onClick = { onSelect(option) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun Chip(text: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
+            .border(
+                width = 1.dp,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.outline
+                },
+                shape = RoundedCornerShape(20.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (selected) {
+                MaterialTheme.colorScheme.onPrimary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+        )
     }
 }
 

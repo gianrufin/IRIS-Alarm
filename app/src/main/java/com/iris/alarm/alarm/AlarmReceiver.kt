@@ -6,6 +6,7 @@ import android.content.Intent
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.iris.alarm.domain.repository.AlarmRepository
+import com.iris.alarm.domain.repository.WakeCheckRepository
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -25,19 +26,37 @@ class AlarmReceiver : BroadcastReceiver() {
 
     @Inject lateinit var scheduler: AlarmScheduler
 
+    @Inject lateinit var wakeCheckRepository: WakeCheckRepository
+
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != AlarmContract.ACTION_ALARM_FIRED) return
+        val isWakeCheck = intent.action == AlarmContract.ACTION_WAKE_CHECK
+        if (intent.action != AlarmContract.ACTION_ALARM_FIRED && !isWakeCheck) return
 
         val alarmId = intent.getLongExtra(AlarmContract.EXTRA_ALARM_ID, AlarmContract.NO_ALARM_ID)
-        Log.i(TAG, "Alarm $alarmId fired")
+        Log.i(TAG, if (isWakeCheck) "Wake check for alarm $alarmId" else "Alarm $alarmId fired")
 
         ContextCompat.startForegroundService(
             context,
             Intent(context, AlarmForegroundService::class.java).apply {
                 action = AlarmContract.ACTION_START
                 putExtra(AlarmContract.EXTRA_ALARM_ID, alarmId)
+                putExtra(AlarmContract.EXTRA_WAKE_CHECK, isWakeCheck)
             },
         )
+
+        if (isWakeCheck) {
+            // The check has fired, so nothing is pending any more; re-arming the
+            // alarm itself would double-schedule it.
+            val pendingClear = goAsync()
+            scope.launch {
+                try {
+                    wakeCheckRepository.clear()
+                } finally {
+                    pendingClear.finish()
+                }
+            }
+            return
+        }
 
         if (alarmId == AlarmContract.NO_ALARM_ID) return
 
