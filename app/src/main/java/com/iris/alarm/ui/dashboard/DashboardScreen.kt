@@ -1,15 +1,26 @@
 package com.iris.alarm.ui.dashboard
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -22,18 +33,105 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.iris.alarm.domain.model.Alarm
+import com.iris.alarm.domain.model.VisionChallenge
+import com.iris.alarm.ui.components.challengeIcon
 import com.iris.alarm.ui.theme.IrisTheme
 import com.iris.alarm.ui.theme.IrisType
+import java.time.DayOfWeek
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
 
-/**
- * Step-one dashboard shell: the hero clock that establishes the type scale.
- * Alarm rows and the add-alarm action are wired in the next step.
- */
 @Composable
-fun DashboardScreen(modifier: Modifier = Modifier) {
+fun DashboardScreen(
+    onAddAlarm: () -> Unit,
+    onEditAlarm: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+    viewModel: DashboardViewModel = hiltViewModel(),
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+    DashboardContent(
+        state = state,
+        exactAlarmsAllowed = viewModel.canScheduleExact(),
+        onFixExactAlarms = viewModel::openExactAlarmSettings,
+        onAddAlarm = onAddAlarm,
+        onEditAlarm = onEditAlarm,
+        onToggle = viewModel::toggle,
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun DashboardContent(
+    state: DashboardUiState,
+    exactAlarmsAllowed: Boolean,
+    onFixExactAlarms: () -> Unit,
+    onAddAlarm: () -> Unit,
+    onEditAlarm: (Long) -> Unit,
+    onToggle: (Alarm, Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .safeDrawingPadding()
+            .padding(horizontal = 20.dp),
+    ) {
+        Clock(nextAlarmSummary = state.nextAlarmSummary)
+
+        if (!exactAlarmsAllowed) {
+            ExactAlarmWarning(onFix = onFixExactAlarms)
+        }
+
+        Box(modifier = Modifier.weight(1f)) {
+            if (state.alarms.isEmpty()) {
+                Text(
+                    text = "NO ALARMS SET",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.align(Alignment.TopStart),
+                )
+            } else {
+                LazyColumn {
+                    items(state.alarms, key = { it.id }) { alarm ->
+                        AlarmRow(
+                            alarm = alarm,
+                            onClick = { onEditAlarm(alarm.id) },
+                            onToggle = { enabled -> onToggle(alarm, enabled) },
+                        )
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                    }
+                }
+            }
+        }
+
+        Button(
+            onClick = onAddAlarm,
+            shape = RoundedCornerShape(32.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.onBackground,
+                contentColor = MaterialTheme.colorScheme.background,
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 24.dp),
+        ) {
+            Text(
+                text = "NEW ALARM",
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(vertical = 10.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun Clock(nextAlarmSummary: String?) {
     var now by remember { mutableStateOf(LocalTime.now()) }
 
     LaunchedEffect(Unit) {
@@ -45,58 +143,158 @@ fun DashboardScreen(modifier: Modifier = Modifier) {
         }
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .safeDrawingPadding()
-            .padding(horizontal = 20.dp),
-    ) {
-        Column(
-            modifier = Modifier.align(Alignment.Center),
-            horizontalAlignment = Alignment.Start,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text(
-                text = "IRIS",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = now.format(TIME_FORMAT),
-                style = IrisType.Clock,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Text(
-                text = now.format(SECONDS_FORMAT),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .fillMaxWidth()
-                .padding(bottom = 32.dp),
-        ) {
-            Text(
-                text = "NO ALARMS SET",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Start,
-            )
-            Box(Modifier.height(8.dp))
-        }
+    Column(modifier = Modifier.padding(top = 40.dp, bottom = 32.dp)) {
+        Text(
+            text = "IRIS",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = now.format(TIME_FORMAT),
+            style = IrisType.Clock,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            text = nextAlarmSummary ?: "NOTHING ARMED",
+            style = MaterialTheme.typography.labelSmall,
+            color = if (nextAlarmSummary == null) {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            } else {
+                MaterialTheme.colorScheme.primary
+            },
+        )
     }
 }
 
+@Composable
+private fun AlarmRow(alarm: Alarm, onClick: () -> Unit, onToggle: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 20.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = alarm.time.format(TIME_FORMAT),
+                style = MaterialTheme.typography.displaySmall,
+                color = if (alarm.enabled) {
+                    MaterialTheme.colorScheme.onBackground
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(
+                    imageVector = alarm.challenge.challengeIcon(),
+                    contentDescription = alarm.challenge.displayName,
+                    tint = if (alarm.enabled) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.size(16.dp),
+                )
+                Text(
+                    text = alarm.repeatSummary(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        Switch(
+            checked = alarm.enabled,
+            onCheckedChange = onToggle,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = MaterialTheme.colorScheme.background,
+                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                uncheckedTrackColor = MaterialTheme.colorScheme.background,
+                uncheckedBorderColor = MaterialTheme.colorScheme.outline,
+            ),
+        )
+    }
+}
+
+@Composable
+private fun ExactAlarmWarning(onFix: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onFix)
+            .padding(bottom = 24.dp),
+    ) {
+        Text(
+            text = "EXACT ALARMS ARE OFF",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.error,
+        )
+        Text(
+            text = "Alarms may ring late. Tap to allow exact alarms.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Start,
+        )
+    }
+}
+
+/** "EVERY DAY", "MON WED FRI", or "ONCE" for a one-shot. */
+internal fun Alarm.repeatSummary(): String = when {
+    repeatDays.isEmpty() -> "ONCE"
+    repeatDays.size == 7 -> "EVERY DAY"
+    repeatDays == WEEKDAYS -> "WEEKDAYS"
+    repeatDays == WEEKEND -> "WEEKEND"
+    else -> DayOfWeek.values()
+        .filter { it in repeatDays }
+        .joinToString(" ") { it.name.take(3) }
+}
+
+private val WEEKDAYS = setOf(
+    DayOfWeek.MONDAY,
+    DayOfWeek.TUESDAY,
+    DayOfWeek.WEDNESDAY,
+    DayOfWeek.THURSDAY,
+    DayOfWeek.FRIDAY,
+)
+private val WEEKEND = setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY)
+
 private val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-private val SECONDS_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("ss")
 
 @Preview(showBackground = true, backgroundColor = 0xFF000000)
 @Composable
 private fun DashboardPreview() {
-    IrisTheme(darkTheme = true) { DashboardScreen() }
+    IrisTheme(darkTheme = true) {
+        DashboardContent(
+            state = DashboardUiState(
+                alarms = listOf(
+                    Alarm(
+                        id = 1,
+                        hour = 6,
+                        minute = 30,
+                        repeatDays = WEEKDAYS,
+                        challenge = VisionChallenge.SMILE,
+                    ),
+                    Alarm(
+                        id = 2,
+                        hour = 9,
+                        minute = 0,
+                        challenge = VisionChallenge.LUMEN,
+                        enabled = false,
+                    ),
+                ),
+                nextAlarmSummary = "RINGS IN 7H 12M",
+            ),
+            exactAlarmsAllowed = true,
+            onFixExactAlarms = {},
+            onAddAlarm = {},
+            onEditAlarm = {},
+            onToggle = { _, _ -> },
+        )
+    }
 }

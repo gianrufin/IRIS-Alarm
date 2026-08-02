@@ -6,6 +6,7 @@ import com.iris.alarm.data.local.AlarmDao
 import com.iris.alarm.data.local.IrisDatabase
 import com.iris.alarm.data.repository.AlarmRepositoryImpl
 import com.iris.alarm.domain.repository.AlarmRepository
+import com.iris.alarm.vision.LumenMonitor
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -25,6 +26,16 @@ object DatabaseModule {
 
     @Provides
     fun provideAlarmDao(database: IrisDatabase): AlarmDao = database.alarmDao()
+}
+
+@Module
+@InstallIn(SingletonComponent::class)
+object SensorModule {
+
+    @Provides
+    @Singleton
+    fun provideLumenMonitor(@ApplicationContext context: Context): LumenMonitor =
+        LumenMonitor(context)
 }
 
 @Module

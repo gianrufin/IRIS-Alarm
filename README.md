@@ -6,9 +6,10 @@ physical object, or walking somewhere bright — evaluated entirely on-device.
 
 ## Status
 
-This is step one of the build: project configuration, the type/colour system,
-and the alarm scheduling + ringing pipeline. The detectors themselves are the
-next step (see [Next steps](#next-steps)).
+Feature-complete for the core loop: set an alarm, it rings over the lock screen,
+and the only way to silence it is to satisfy a camera or sensor challenge.
+Unit tests cover the scheduling maths and the persistence round-trip
+(`./gradlew :app:testDebugUnitTest`).
 
 ## Stack
 
@@ -94,11 +95,39 @@ echo "sdk.dir=/path/to/android-sdk" > local.properties
 The debug APK is large (~100 MB) because the ML Kit models are bundled for
 offline use; the release build shrinks with R8 (`isMinifyEnabled`).
 
+## Screens
+
+- **Dashboard** (`ui/dashboard`) — hero clock, time to the next alarm, one row
+  per alarm with its challenge glyph and repeat summary, and an inline warning
+  (tap to fix) when the OS has revoked exact alarms.
+- **Editor** (`ui/editor`) — snapping hour/minute wheels at display type size,
+  day chips, the three challenges as full-width options, hunt-target chips,
+  label, system ringtone picker and vibration.
+- **Challenge** (`ui/challenge`) — the ringing surface. A progress ring traces
+  the rounded outline of the camera window or lux gauge as the detector closes
+  in; the readout under it shows the live number and one line of guidance.
+
+## Detector behaviour
+
+Each detector reports a `ChallengeProgress` (fraction, readout, hint, solved),
+so the same ring and readout serve all three.
+
+- **Smile** holds are timed against the wall clock, not frame counts, so 3
+  seconds means 3 seconds on a phone that is dropping frames.
+- **Object hunt** labels below the pass threshold still drive the readout, so
+  confidence visibly climbs as the user gets closer; the pass needs a streak of
+  qualifying frames, not one lucky one.
+- **Lumen** requires the target to be held, so sweeping a torch past the sensor
+  does not end the alarm.
+
+Camera analysis runs on its own executor with `KEEP_ONLY_LATEST` backpressure,
+and every ML Kit client is closed when the challenge screen goes away.
+
 ## Next steps
 
-1. Dashboard alarm list + create/edit screen (giant numeric time selector,
-   challenge picker, sound/vibration/label).
-2. `CameraX` analysers for the smile and object-hunt detectors, and the
-   `SensorManager` lux gauge, wired into `ChallengeScreen`.
-3. Runtime permission flows for `CAMERA` and `POST_NOTIFICATIONS`, and the
-   exact-alarm settings prompt when `canScheduleExact` is false.
+- Instrumented tests for the ringing flow (fire an alarm, assert the challenge
+  Activity shows over the keyguard).
+- A settings screen: default challenge, auto-silence duration, gradual volume
+  ramp.
+- Per-challenge fallbacks — the lux challenge already reports when a device has
+  no light sensor, but nothing yet offers the user a different task.
