@@ -12,6 +12,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -51,6 +53,7 @@ import com.iris.alarm.ui.theme.IrisTheme
 import com.iris.alarm.ui.theme.IrisType
 import java.time.DayOfWeek
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AlarmEditorScreen(
     onDone: () -> Unit,
@@ -335,14 +338,19 @@ private fun ChallengeOption(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TargetPicker(selected: HuntTarget, onSelect: (HuntTarget) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    // Wraps rather than squeezing: target names are shown in full, because a
+    // truncated "GLAS" tells the user nothing about what to go and find.
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         HuntTarget.entries.forEach { target ->
             val isOn = target == selected
             Box(
                 modifier = Modifier
-                    .weight(1f)
                     .clip(RoundedCornerShape(20.dp))
                     .background(if (isOn) MaterialTheme.colorScheme.primary else Color.Transparent)
                     .border(
@@ -355,11 +363,11 @@ private fun TargetPicker(selected: HuntTarget, onSelect: (HuntTarget) -> Unit) {
                         shape = RoundedCornerShape(20.dp),
                     )
                     .clickable { onSelect(target) }
-                    .padding(vertical = 12.dp),
+                    .padding(horizontal = 18.dp, vertical = 12.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = target.displayName.take(4),
+                    text = target.displayName,
                     style = MaterialTheme.typography.labelSmall,
                     color = if (isOn) {
                         MaterialTheme.colorScheme.onPrimary

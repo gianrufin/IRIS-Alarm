@@ -5,7 +5,9 @@ import androidx.room.Room
 import com.iris.alarm.data.local.AlarmDao
 import com.iris.alarm.data.local.IrisDatabase
 import com.iris.alarm.data.repository.AlarmRepositoryImpl
+import com.iris.alarm.domain.model.DeviceCapabilities
 import com.iris.alarm.domain.repository.AlarmRepository
+import com.iris.alarm.vision.AndroidDeviceCapabilities
 import com.iris.alarm.vision.LumenMonitor
 import dagger.Binds
 import dagger.Module
@@ -36,6 +38,11 @@ object SensorModule {
     @Singleton
     fun provideLumenMonitor(@ApplicationContext context: Context): LumenMonitor =
         LumenMonitor(context)
+
+    @Provides
+    @Singleton
+    fun provideDeviceCapabilities(@ApplicationContext context: Context): DeviceCapabilities =
+        AndroidDeviceCapabilities(context)
 }
 
 @Module

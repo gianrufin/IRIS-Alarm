@@ -30,7 +30,15 @@ enum class VisionChallenge {
         }
 }
 
-/** Targets offered for [VisionChallenge.OBJECT_HUNT]. */
+/**
+ * Targets offered for [VisionChallenge.OBJECT_HUNT].
+ *
+ * Every entry MUST exist in the default on-device labeler's vocabulary — a
+ * target the model cannot emit is a target the user can never hunt down, and the
+ * alarm would only stop at the auto-silence timeout. `HuntTargetLabelTest`
+ * asserts this against the label list shipped inside the model asset; add a
+ * target only after it passes.
+ */
 enum class HuntTarget(
     /**
      * Label as emitted by ML Kit's on-device image labeler. Matching is done on
@@ -39,10 +47,10 @@ enum class HuntTarget(
     val mlKitLabel: String,
 ) {
     CUP("Cup"),
-    BOTTLE("Bottle"),
     SHOE("Shoe"),
     PLANT("Plant"),
-    BOOK("Book"),
+    GLASSES("Glasses"),
+    JACKET("Jacket"),
     ;
 
     val displayName: String get() = mlKitLabel.uppercase()

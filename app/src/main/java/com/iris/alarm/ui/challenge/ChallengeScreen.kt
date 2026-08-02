@@ -5,6 +5,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -61,13 +62,14 @@ fun ChallengeScreen(
     modifier: Modifier = Modifier,
     viewModel: ChallengeViewModel = hiltViewModel(),
 ) {
-    val challenge = alarm?.challenge ?: VisionChallenge.SMILE
-    val progress by viewModel.progress.collectAsStateWithLifecycle()
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val challenge = state.challenge
+    val progress = state.progress
     val cameraPermission = rememberPermissionState(android.Manifest.permission.CAMERA)
     val needsCamera = challenge != VisionChallenge.LUMEN
 
-    LaunchedEffect(challenge) {
-        if (challenge == VisionChallenge.LUMEN) viewModel.startLumenMonitoring()
+    LaunchedEffect(alarm?.id, alarm?.challenge) {
+        viewModel.start(alarm?.challenge ?: VisionChallenge.SMILE)
     }
 
     LaunchedEffect(progress.solved) {
@@ -99,7 +101,7 @@ fun ChallengeScreen(
             .padding(horizontal = 20.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        Header(alarm = alarm, challenge = challenge)
+        Header(alarm = alarm, challenge = challenge, notice = state.notice)
 
         Box(
             modifier = Modifier
@@ -123,21 +125,36 @@ fun ChallengeScreen(
                     onProgress = viewModel::report,
                 )
 
-                else -> CameraPermissionPrompt(onGrant = cameraPermission::launchPermissionRequest)
+                else -> CameraPermissionPrompt(
+                    onGrant = cameraPermission::launchPermissionRequest,
+                    onUseAnother = viewModel::onCameraUnavailable,
+                )
             }
         }
 
-        Readout(progress = progress, challenge = challenge, alarm = alarm)
+        Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            Readout(progress = progress, challenge = challenge, alarm = alarm)
+
+            if (state.escapeAllowed) {
+                // Nothing on this device can run a challenge. Ringing forever with
+                // no way out is a worse failure than letting the alarm be stopped.
+                EscapeButton(onDismiss = onChallengeSolved)
+            }
+        }
     }
 }
 
 @Composable
-private fun Header(alarm: Alarm?, challenge: VisionChallenge) {
+private fun Header(alarm: Alarm?, challenge: VisionChallenge, notice: String? = null) {
     Column {
         Text(
-            text = challenge.displayName.uppercase(),
+            text = notice ?: challenge.displayName.uppercase(),
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.primary,
+            color = if (notice != null) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.primary
+            },
         )
         Text(
             text = LocalTime.now().format(TIME_FORMAT),
@@ -211,7 +228,7 @@ private fun LumenGauge(progress: ChallengeProgress) {
 }
 
 @Composable
-private fun CameraPermissionPrompt(onGrant: () -> Unit) {
+private fun CameraPermissionPrompt(onGrant: () -> Unit, onUseAnother: () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -233,6 +250,32 @@ private fun CameraPermissionPrompt(onGrant: () -> Unit) {
         ) {
             Text(text = "GRANT ACCESS", style = MaterialTheme.typography.labelLarge)
         }
+        // Covers a permanent denial, where the system dialog never appears again.
+        Text(
+            text = "USE ANOTHER CHALLENGE",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.clickable(onClick = onUseAnother),
+        )
+    }
+}
+
+@Composable
+private fun EscapeButton(onDismiss: () -> Unit) {
+    Button(
+        onClick = onDismiss,
+        shape = RoundedCornerShape(32.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.onBackground,
+            contentColor = MaterialTheme.colorScheme.background,
+        ),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            text = "DISMISS ALARM",
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(vertical = 10.dp),
+        )
     }
 }
 

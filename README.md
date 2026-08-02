@@ -120,6 +120,23 @@ so the same ring and readout serve all three.
 - **Lumen** requires the target to be held, so sweeping a torch past the sensor
   does not end the alarm.
 
+### Hunt targets are validated against the model
+
+Every `HuntTarget` must be a label the bundled labeler can emit — a target
+outside its vocabulary can never reach the threshold, so that alarm would ring
+until the auto-silence timeout with no way to stop it. `HuntTargetLabelTest`
+(instrumented) reads the vocabulary out of the model asset itself and fails if
+any target is missing, so bumping the ML Kit version re-validates them.
+
+### Nothing rings without a way out
+
+`resolveChallenge` degrades to a challenge the hardware supports when the
+configured one is impossible (no front camera, no light sensor), and the ringing
+screen says which substitution it made. If the camera is refused, a second
+option switches to a sensor challenge. When a device can run no detector at all,
+the screen offers a plain dismiss — an alarm nobody can stop is a worse failure
+than a skipped challenge.
+
 Camera analysis runs on its own executor with `KEEP_ONLY_LATEST` backpressure,
 and every ML Kit client is closed when the challenge screen goes away.
 
@@ -129,5 +146,5 @@ and every ML Kit client is closed when the challenge screen goes away.
   Activity shows over the keyguard).
 - A settings screen: default challenge, auto-silence duration, gradual volume
   ramp.
-- Per-challenge fallbacks — the lux challenge already reports when a device has
-  no light sensor, but nothing yet offers the user a different task.
+- Volume handling: an alarm at zero `STREAM_ALARM` volume is silent, and there
+  is no gradual ramp.
