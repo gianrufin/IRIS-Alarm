@@ -23,10 +23,16 @@ import org.json.JSONObject
 @Singleton
 class GitHubUpdateSource @Inject constructor() {
 
-    /** Null when the newest release is not newer than the installed build. */
+    /**
+     * Null when there is nothing to install: either the newest release is not
+     * newer than this build, or the project has published no releases at all,
+     * which GitHub reports as a 404 and which is emphatically not an error to
+     * show the user.
+     */
     suspend fun latestUpdate(): Result<AppUpdate?> = withContext(Dispatchers.IO) {
         runCatching {
-            val json = JSONObject(get(LATEST_RELEASE_URL))
+            val body = get(LATEST_RELEASE_URL) ?: return@runCatching null
+            val json = JSONObject(body)
             val tag = json.optString("tag_name").ifBlank { json.optString("name") }
             if (tag.isBlank()) return@runCatching null
             if (!isNewerVersion(tag, BuildConfig.VERSION_NAME)) return@runCatching null
@@ -97,21 +103,32 @@ class GitHubUpdateSource @Inject constructor() {
         }
     }
 
-    private fun get(url: String): String = open(url).run {
-        val body = inputStream.bufferedReader().use { it.readText() }
-        disconnect()
-        body
+    /** Null when GitHub says there is no such release yet. */
+    private fun get(url: String): String? {
+        val connection = connect(url)
+        if (connection.responseCode == HTTP_NOT_FOUND) {
+            connection.disconnect()
+            return null
+        }
+        check(connection.responseCode in 200..299) {
+            "GitHub returned HTTP ${connection.responseCode}"
+        }
+        val body = connection.inputStream.bufferedReader().use { it.readText() }
+        connection.disconnect()
+        return body
     }
 
-    private fun open(url: String): HttpURLConnection =
+    private fun open(url: String): HttpURLConnection = connect(url).apply {
+        check(responseCode in 200..299) { "GitHub returned HTTP $responseCode" }
+    }
+
+    private fun connect(url: String): HttpURLConnection =
         (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = TIMEOUT_MILLIS
             readTimeout = TIMEOUT_MILLIS
             instanceFollowRedirects = true
             setRequestProperty("Accept", "application/vnd.github+json")
             setRequestProperty("User-Agent", "IRIS-Alarm")
-            val code = responseCode
-            check(code in 200..299) { "GitHub returned HTTP $code" }
         }
 
     /** Matches the release asset built for this device's primary ABI. */
@@ -128,5 +145,6 @@ class GitHubUpdateSource @Inject constructor() {
         const val TIMEOUT_MILLIS = 20_000
         const val PROGRESS_STEP = 0.01f
         const val NOTES_LIMIT = 500
+        const val HTTP_NOT_FOUND = 404
     }
 }
