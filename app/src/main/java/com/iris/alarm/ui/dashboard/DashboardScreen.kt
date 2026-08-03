@@ -212,8 +212,7 @@ private fun DashboardContent(
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
-                        // Clears the floating dock, which overlays the content.
-                        .padding(top = 24.dp, bottom = 96.dp),
+                        .padding(top = 24.dp, bottom = 24.dp),
                 ) {
                     Text(
                         text = "NEW ALARM",
@@ -242,7 +241,7 @@ private fun SelectionBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 24.dp, bottom = 96.dp),
+            .padding(top = 24.dp, bottom = 24.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {

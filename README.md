@@ -440,41 +440,33 @@ than a skipped challenge.
 Camera analysis runs on its own executor with `KEEP_ONLY_LATEST` backpressure,
 and every ML Kit client is closed when the challenge screen goes away.
 
-## The rest of the clock
+## An alarm clock and nothing else
 
-A floating dock over the bottom of the screen switches between the alarm list and
-three tools:
+IRIS carried a timer, a stopwatch and a pomodoro behind a floating dock for a
+while. They were competent and they are gone.
 
-- **Timer** — countdown with presets.
-- **Stopwatch** — hundredths, with laps showing both split and total.
-- **Pomodoro** — 25/5 focus blocks, a long break every fourth.
+An app that does one thing can put the whole screen behind it, which is what the
+enormous clock and the list under it were designed for; a dock across the bottom
+meant every screen reserved 96dp for four icons, three of which nobody opened at
+6am. And every tool was one more surface to keep working — a foreground service,
+a notification with its own controls, its own settings — for capability the
+phone's own clock app already has and does fine.
 
-All three derive their reading from the monotonic clock rather than accumulating
-ticks, so a dropped frame cannot make them run slow.
-
-They live in `ToolsEngine`, owned by the application rather than by a screen, so
-leaving the app no longer throws away a running stopwatch. `ToolsService` renders
-that state as an ongoing notification with its controls attached — pause, resume,
-lap, skip — and holds no state of its own, which is what stops the notification
-and the screen disagreeing about whether something is paused. It stops itself the
-moment nothing is running.
-
-They are still not alarms: an alarm goes through `AlarmManager` so it survives a
-dozing phone, and blurring that line would get someone to trust a countdown to
-wake them.
-
-The timer takes an exact `MM : SS` as well as presets, and the pomodoro's focus,
-break, long break and cadence are all settable.
+What was removed: `tools/ToolsEngine`, `tools/ToolsService`, the whole
+`ui/tools` package, the `HomeTab` dock, three launcher shortcuts, the
+`specialUse` foreground service and its permission, and the `SET_TIMER` /
+`SHOW_TIMERS` intent filters. `IrisNavHost` now shows `DashboardScreen`
+directly — there is no tab layer left to route through.
 
 ## Quick actions and the assistant
 
-Long-pressing the launcher icon offers **create alarm, start timer, start
-stopwatch, start focus**, each landing directly on the thing named.
+Long-pressing the launcher icon goes straight to a new alarm.
 
-IRIS also answers the standard clock intents — `SET_ALARM`, `SET_TIMER`,
-`SHOW_ALARMS`, `SHOW_TIMERS` — so "Hey Google, set a timer for five minutes"
-offers it alongside the phone's own clock, arriving with the duration already
-loaded and running.
+IRIS answers `SET_ALARM` and `SHOW_ALARMS`, so "Hey Google, set an alarm for
+7:30" offers it alongside the phone's own clock, arriving with the time already
+filled in. It deliberately does **not** answer `SET_TIMER` or `SHOW_TIMERS`
+any more: registering for an intent it cannot honour would put it in the
+assistant's chooser and then do nothing useful when picked.
 
 One honest limit: **Android has no "default alarm app" role to claim.** Unlike
 the browser or the SMS app, there is no setting that makes one clock app the

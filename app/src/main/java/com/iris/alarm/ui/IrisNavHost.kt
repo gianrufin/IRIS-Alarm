@@ -21,6 +21,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.iris.alarm.ui.editor.AlarmEditorScreen
+import com.iris.alarm.ui.dashboard.DashboardScreen
 import com.iris.alarm.ui.onboarding.OnboardingScreen
 import com.iris.alarm.ui.editor.AlarmEditorViewModel
 import com.iris.alarm.ui.editor.AnchorCaptureScreen
@@ -95,8 +96,7 @@ fun IrisNavHost(
                 }
             }
 
-            IrisHome(
-                entryPoint = entryPoint,
+            DashboardScreen(
                 onAddAlarm = {
                     navController.navigate(Routes.editor(AlarmEditorViewModel.NEW_ALARM_ID))
                 },

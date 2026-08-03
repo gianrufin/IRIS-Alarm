@@ -12,7 +12,6 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -67,15 +66,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- The standard clock intents. Registering these is what puts IRIS
-                 in the chooser for "Hey Google, set an alarm" and "set a timer".
-                 Android has no "default alarm app" role to claim: the picker
-                 appears because more than one installed app answers these. -->
+            <!-- The standard alarm intents. Registering these is what puts IRIS
+                 in the chooser for "Hey Google, set an alarm". Android has no
+                 "default alarm app" role to claim: the picker appears because
+                 more than one installed app answers these.
+
+                 SET_TIMER and SHOW_TIMERS are deliberately absent — IRIS has no
+                 timer, and answering an intent it cannot honour would put it in
+                 the chooser and then do nothing. -->
             <intent-filter>
                 <action android:name="android.intent.action.SET_ALARM" />
-                <action android:name="android.intent.action.SET_TIMER" />
                 <action android:name="android.intent.action.SHOW_ALARMS" />
-                <action android:name="android.intent.action.SHOW_TIMERS" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
 
@@ -96,18 +97,6 @@
             android:taskAffinity=".challenge"
             android:theme="@style/Theme.Iris"
             android:turnScreenOn="true" />
-
-        <!-- specialUse: a running stopwatch is neither media nor a data
-             transfer, and Android has no foreground type for "the user asked
-             this to keep counting". -->
-        <service
-            android:name=".tools.ToolsService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Keeps a user-started timer, stopwatch or focus block counting with controls in the notification" />
-        </service>
 
         <service
             android:name=".alarm.AlarmForegroundService"
