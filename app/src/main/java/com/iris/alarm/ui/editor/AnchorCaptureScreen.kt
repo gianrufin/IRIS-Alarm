@@ -20,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +38,7 @@ import com.iris.alarm.ui.challenge.CameraWindow
 import com.iris.alarm.vision.AnchorCapture
 import com.iris.alarm.vision.AnchorPreviewAnalyzer
 import com.iris.alarm.vision.CapturedAnchor
+import kotlinx.coroutines.delay
 
 /**
  * Point the rear camera at the spot the alarm should send you to, and capture it.
@@ -57,17 +59,37 @@ fun AnchorCaptureScreen(
     val cameraPermission = rememberPermissionState(android.Manifest.permission.CAMERA)
     var flash by remember { mutableStateOf(false) }
 
+    // The analyser runs on CameraX's background executor, so the captured anchor
+    // is parked in state and handed over from a LaunchedEffect. Calling back
+    // straight from the analysis thread navigated off the main thread, which
+    // crashed the app the moment a spot was captured.
+    var captured by remember { mutableStateOf<CapturedAnchor?>(null) }
+
     val analyzer = remember {
         AnchorPreviewAnalyzer { image ->
-            val captured = try {
+            val anchor = try {
                 AnchorCapture.capture(context, image)
             } finally {
                 image.close()
             }
-            if (captured != null) onCaptured(captured)
+            captured = anchor
         }
     }
     DisposableEffect(analyzer) { onDispose { analyzer.close() } }
+
+    LaunchedEffect(captured) {
+        val anchor = captured ?: return@LaunchedEffect
+        // Let the shutter flash register before the screen goes away.
+        delay(FLASH_MILLIS)
+        onCaptured(anchor)
+    }
+
+    // A failed capture must not leave the button dead.
+    LaunchedEffect(flash) {
+        if (!flash) return@LaunchedEffect
+        delay(FLASH_MILLIS)
+        flash = false
+    }
 
     Box(
         modifier = modifier
@@ -169,3 +191,5 @@ fun AnchorCaptureScreen(
         }
     }
 }
+
+private const val FLASH_MILLIS = 220L

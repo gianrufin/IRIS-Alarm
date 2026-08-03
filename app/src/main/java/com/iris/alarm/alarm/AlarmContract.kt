@@ -9,6 +9,8 @@ object AlarmContract {
     const val ACTION_WAKE_CHECK = "com.iris.alarm.action.WAKE_CHECK"
     const val ACTION_START = "com.iris.alarm.action.START"
     const val ACTION_DISMISS = "com.iris.alarm.action.DISMISS"
+    const val ACTION_SNOOZE = "com.iris.alarm.action.SNOOZE"
+    const val ACTION_SNOOZE_FIRED = "com.iris.alarm.action.SNOOZE_FIRED"
 
     const val EXTRA_ALARM_ID = "com.iris.alarm.extra.ALARM_ID"
 
@@ -38,4 +40,7 @@ object AlarmContract {
      * scheduling a second must replace the first, not stack another alarm.
      */
     const val WAKE_CHECK_REQUEST_CODE = 2_000_000
+
+    /** As above: only one snooze can be outstanding at a time. */
+    const val SNOOZE_REQUEST_CODE = 3_000_000
 }

@@ -43,21 +43,6 @@ fun PermissionsScreen(
     modifier: Modifier = Modifier,
     viewModel: PermissionsViewModel = hiltViewModel(),
 ) {
-    val states by viewModel.states.collectAsStateWithLifecycle()
-
-    // Returning from a settings page is the only signal that anything changed.
-    val settingsLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult(),
-    ) { viewModel.refresh() }
-
-    val cameraLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { viewModel.refresh() }
-
-    val notificationLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { viewModel.refresh() }
-
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -90,6 +75,41 @@ fun PermissionsScreen(
             )
         }
 
+        PermissionList(viewModel = viewModel, showOemNote = true)
+
+        Box(Modifier.padding(bottom = 24.dp))
+    }
+}
+
+/**
+ * The permission rows on their own, shared by the settings screen and first-run
+ * onboarding so the two can never drift apart.
+ */
+@Composable
+fun PermissionList(
+    viewModel: PermissionsViewModel,
+    showOemNote: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val states by viewModel.states.collectAsStateWithLifecycle()
+
+    // Returning from a settings page is the only signal that anything changed.
+    val settingsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { viewModel.refresh() }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { viewModel.refresh() }
+
+    val notificationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { viewModel.refresh() }
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
         states.forEach { state ->
             PermissionRow(
                 state = state,
@@ -115,13 +135,11 @@ fun PermissionsScreen(
             )
         }
 
-        OemNote(
-            onOpenAppSettings = {
-                settingsLauncher.launch(viewModel.appSettingsIntent())
-            },
-        )
-
-        Box(Modifier.padding(bottom = 24.dp))
+        if (showOemNote) {
+            OemNote(
+                onOpenAppSettings = { settingsLauncher.launch(viewModel.appSettingsIntent()) },
+            )
+        }
     }
 }
 

@@ -60,9 +60,10 @@ data class Alarm(
     }
 
     companion object {
+        /** A new alarm starts at the current time, so it is one nudge away. */
         fun default(): Alarm {
             val now = LocalTime.now()
-            return Alarm(hour = now.hour, minute = 0, repeatDays = emptySet())
+            return Alarm(hour = now.hour, minute = now.minute, repeatDays = emptySet())
         }
 
         /** Used only by previews and tests that need a stable date. */

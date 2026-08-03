@@ -1,5 +1,19 @@
 package com.iris.alarm.domain.model
 
+enum class ThemeMode {
+    SYSTEM,
+    LIGHT,
+    DARK,
+    ;
+
+    val displayName: String
+        get() = when (this) {
+            SYSTEM -> "System"
+            LIGHT -> "Light"
+            DARK -> "Dark"
+        }
+}
+
 /**
  * App-wide preferences. Every field has a default that makes IRIS behave sanely
  * on a fresh install, so a missing DataStore value is never a special case.
@@ -33,6 +47,14 @@ data class IrisSettings(
 
     /** False shows 12-hour times with an AM/PM suffix. */
     val use24Hour: Boolean = true,
+
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+
+    /** Minutes a swipe-to-snooze buys before the alarm returns. */
+    val snoozeMinutes: Int = DEFAULT_SNOOZE_MINUTES,
+
+    /** False until the first-run setup has been walked through. */
+    val onboardingComplete: Boolean = false,
 ) {
     val autoSilenceMillis: Long get() = autoSilenceMinutes * 60_000L
 
@@ -51,10 +73,12 @@ data class IrisSettings(
         const val DEFAULT_RAMP_SECONDS = 15
         const val DEFAULT_MINIMUM_VOLUME_PERCENT = 60
         const val DEFAULT_WAKE_CHECK_MINUTES = 0
+        const val DEFAULT_SNOOZE_MINUTES = 9
 
         val AUTO_SILENCE_CHOICES = listOf(1, 5, 10, 15, 30)
         val RAMP_CHOICES = listOf(0, 5, 15, 30)
         val MINIMUM_VOLUME_CHOICES = listOf(0, 40, 60, 80, 100)
         val WAKE_CHECK_CHOICES = listOf(0, 3, 5, 10, 15)
+        val SNOOZE_CHOICES = listOf(0, 5, 9, 15, 20)
     }
 }

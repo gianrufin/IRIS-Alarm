@@ -86,6 +86,7 @@
             <intent-filter>
                 <action android:name="com.iris.alarm.action.ALARM_FIRED" />
                 <action android:name="com.iris.alarm.action.WAKE_CHECK" />
+                <action android:name="com.iris.alarm.action.SNOOZE_FIRED" />
             </intent-filter>
         </receiver>
 

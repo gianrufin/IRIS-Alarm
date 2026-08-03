@@ -1,6 +1,7 @@
 package com.iris.alarm.domain.repository
 
 import com.iris.alarm.domain.model.IrisSettings
+import com.iris.alarm.domain.model.ThemeMode
 import com.iris.alarm.domain.model.VisionChallenge
 import kotlinx.coroutines.flow.Flow
 
@@ -21,4 +22,10 @@ interface SettingsRepository {
     suspend fun setWakeCheckMinutes(minutes: Int)
 
     suspend fun setUse24Hour(use24Hour: Boolean)
+
+    suspend fun setThemeMode(mode: ThemeMode)
+
+    suspend fun setSnoozeMinutes(minutes: Int)
+
+    suspend fun setOnboardingComplete(complete: Boolean)
 }

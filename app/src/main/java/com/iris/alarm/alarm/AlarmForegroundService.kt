@@ -91,6 +91,11 @@ class AlarmForegroundService : Service() {
                 stopRinging()
             }
 
+            AlarmContract.ACTION_SNOOZE -> {
+                snooze()
+                stopRinging()
+            }
+
             else -> {
                 // Restarted by the system with a null intent and no alarm context —
                 // there is nothing meaningful to ring for.
@@ -125,6 +130,7 @@ class AlarmForegroundService : Service() {
                 .effectiveFor(alarm)
 
             _use24Hour.value = settings.use24Hour
+            _snoozeMinutes.value = settings.snoozeMinutes
             raiseVolumeFloor(settings.minimumVolumePercent)
             startAudio(alarm?.soundUri?.let(Uri::parse), settings.volumeRampSeconds)
             if (alarm?.vibrate != false) startVibration()
@@ -304,6 +310,22 @@ class AlarmForegroundService : Service() {
         }
     }
 
+    /**
+     * Rings the same alarm again shortly. A snooze deliberately does not arm a
+     * wake check: the snooze *is* the follow-up.
+     */
+    private fun snooze() {
+        val alarmId = _ringingAlarmId.value
+        if (alarmId == AlarmContract.NO_ALARM_ID) return
+
+        scope.launch {
+            val minutes = runCatching { settingsRepository.current().snoozeMinutes }
+                .getOrDefault(IrisSettings.DEFAULT_SNOOZE_MINUTES)
+            if (minutes <= 0) return@launch
+            scheduler.scheduleSnooze(alarmId, System.currentTimeMillis() + minutes * 60_000L)
+        }
+    }
+
     private fun stopRinging() {
         autoSilenceJob?.cancel()
         autoSilenceJob = null
@@ -356,10 +378,24 @@ class AlarmForegroundService : Service() {
         /** Clock format for the lock-screen surfaces, which have no settings access. */
         val use24Hour: StateFlow<Boolean> = _use24Hour.asStateFlow()
 
+        private val _snoozeMinutes = MutableStateFlow(IrisSettings.DEFAULT_SNOOZE_MINUTES)
+
+        /** Snooze length for the lock-screen surfaces, which have no settings access. */
+        val snoozeMinutes: StateFlow<Int> = _snoozeMinutes.asStateFlow()
+
         private val _ringingIsWakeCheck = MutableStateFlow(false)
 
         /** True while the current ring is a follow-up check, not the alarm itself. */
         val ringingIsWakeCheck: StateFlow<Boolean> = _ringingIsWakeCheck.asStateFlow()
+
+        /** Called when the user swipes to snooze. */
+        fun snooze(context: Context) {
+            context.startService(
+                Intent(context, AlarmForegroundService::class.java).apply {
+                    action = AlarmContract.ACTION_SNOOZE
+                },
+            )
+        }
 
         /** Called by the challenge UI once a vision/sensor task has been satisfied. */
         fun dismiss(context: Context) {

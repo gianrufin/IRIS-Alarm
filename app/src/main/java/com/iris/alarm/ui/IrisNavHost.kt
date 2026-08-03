@@ -15,14 +15,15 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.iris.alarm.ui.dashboard.DashboardScreen
 import com.iris.alarm.ui.editor.AlarmEditorScreen
+import com.iris.alarm.ui.onboarding.OnboardingScreen
 import com.iris.alarm.ui.editor.AlarmEditorViewModel
 import com.iris.alarm.ui.editor.AnchorCaptureScreen
 import com.iris.alarm.ui.permissions.PermissionsScreen
 import com.iris.alarm.ui.settings.SettingsScreen
 
 private object Routes {
+    const val ONBOARDING = "onboarding"
     const val DASHBOARD = "dashboard"
     const val SETTINGS = "settings"
     const val PERMISSIONS = "permissions"
@@ -37,12 +38,16 @@ private object Routes {
 private const val TRANSITION_MILLIS = 260
 
 @Composable
-fun IrisNavHost(modifier: Modifier = Modifier) {
+fun IrisNavHost(
+    onboardingComplete: Boolean,
+    onOnboardingFinished: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val navController = rememberNavController()
 
     NavHost(
         navController = navController,
-        startDestination = Routes.DASHBOARD,
+        startDestination = if (onboardingComplete) Routes.DASHBOARD else Routes.ONBOARDING,
         modifier = modifier,
         // Screens slide in from the right and fade, so moving deeper into the app
         // reads as a direction rather than a cut.
@@ -61,8 +66,20 @@ fun IrisNavHost(modifier: Modifier = Modifier) {
             ) + fadeOut(tween(TRANSITION_MILLIS))
         },
     ) {
+        composable(Routes.ONBOARDING) {
+            OnboardingScreen(
+                onFinished = {
+                    onOnboardingFinished()
+                    navController.navigate(Routes.DASHBOARD) {
+                        // Setup is done; there is nothing to come back to.
+                        popUpTo(Routes.ONBOARDING) { inclusive = true }
+                    }
+                },
+            )
+        }
+
         composable(Routes.DASHBOARD) {
-            DashboardScreen(
+            IrisHome(
                 onAddAlarm = {
                     navController.navigate(Routes.editor(AlarmEditorViewModel.NEW_ALARM_ID))
                 },

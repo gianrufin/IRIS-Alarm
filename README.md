@@ -136,11 +136,28 @@ uses a single fixed request code, so a second check replaces the first rather
 than stacking. Deleting an alarm cancels a check belonging to it, so a check can
 never outlive the alarm behind it.
 
+## First run
+
+Onboarding walks through what IRIS is and then every permission it needs, since
+Android grants none of them without the user visiting a settings page. It can be
+skipped — refusing to let someone into an app they just installed is worse — but
+it says plainly what breaks. The same rows live in Settings → Permissions.
+
 ## The ringing screen
 
-An alarm opens with an animated iris over the time and label, held for about
-1.7s, before the challenge takes over — a camera viewfinder appearing with no
-preamble reads as the phone malfunctioning at 6am, not as an alarm.
+A ringing alarm shows the time on a card you push aside: **left snoozes, right
+goes on to the challenge**. The card leans and follows the finger and the side
+you are heading for brightens — the gesture is borrowed from swipe-to-decide card
+decks, kept quiet. It is deliberately a drag across a third of the screen rather
+than a button, because half asleep a button is easy to hit by accident.
+
+Snooze length is a setting; set it to off and the left half of the swipe goes
+away rather than silently doing nothing.
+
+
+Past the card, the challenge opens with an animated iris over the time and
+label, held for about 1.7s — a camera viewfinder appearing with no preamble
+reads as the phone malfunctioning at 6am, not as an alarm.
 
 Then the camera fills the screen behind a scrim and **the instruction sits dead
 centre in the largest type on screen**: "OPEN YOUR EYES WIDER", "GO TO YOUR
@@ -155,7 +172,9 @@ ring traces the edge of the display itself.
 
 | Setting | Default | Why |
 | --- | --- | --- |
+| Appearance | System | Light, dark or follow the system. The ringing screen stays dark regardless |
 | Clock | 24 hour | 12/24-hour across every surface, including the lock screen |
+| Snooze | 9 min | Swipe-left length; off removes that half of the swipe |
 | Default challenge | Mirror Iris | Pre-selects the challenge for new alarms |
 | Auto-silence | 10 min | How long an unsolved alarm rings before giving up |
 | Volume ramp | 15 s | Fade in from near-silence, so the alarm wakes rather than startles |
@@ -291,6 +310,31 @@ than a skipped challenge.
 
 Camera analysis runs on its own executor with `KEEP_ONLY_LATEST` backpressure,
 and every ML Kit client is closed when the challenge screen goes away.
+
+## The rest of the clock
+
+A floating dock over the bottom of the screen switches between the alarm list and
+three tools:
+
+- **Timer** — countdown with presets.
+- **Stopwatch** — hundredths, with laps showing both split and total.
+- **Pomodoro** — 25/5 focus blocks, a long break every fourth.
+
+All three derive their reading from the monotonic clock rather than accumulating
+ticks, so a dropped frame cannot make them run slow. None of them is an alarm:
+they run only while IRIS is open, and the timer says so on screen. Anything that
+must survive a locked, dozing phone goes through `AlarmManager`, and blurring
+that line would quietly get someone to trust a countdown to wake them.
+
+## Setting the time
+
+The hour and minute wheels are endless: indices wrap onto the real range, so
+spinning past 59 rolls into 00 rather than hitting a wall. Items away from the
+centre tilt back in Z, shrink and fade, which reads as a drum turning rather
+than a list sliding. In 12-hour mode, spinning the hour wheel past 12 flips
+AM/PM, so one continuous scroll walks the whole day.
+
+A new alarm opens at the current time; editing one opens at its own time.
 
 ## Not yet verified on hardware
 

@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.iris.alarm.domain.model.IrisSettings
+import com.iris.alarm.domain.model.ThemeMode
 import com.iris.alarm.domain.model.VisionChallenge
 import com.iris.alarm.domain.repository.SettingsRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -34,6 +35,11 @@ class SettingsRepositoryImpl @Inject constructor(
             wakeCheckMinutes = prefs[Keys.WAKE_CHECK_MINUTES]
                 ?: IrisSettings.DEFAULT_WAKE_CHECK_MINUTES,
             use24Hour = prefs[Keys.USE_24_HOUR] ?: true,
+            themeMode = prefs[Keys.THEME_MODE]
+                ?.let { name -> runCatching { ThemeMode.valueOf(name) }.getOrNull() }
+                ?: ThemeMode.SYSTEM,
+            snoozeMinutes = prefs[Keys.SNOOZE_MINUTES] ?: IrisSettings.DEFAULT_SNOOZE_MINUTES,
+            onboardingComplete = prefs[Keys.ONBOARDING_COMPLETE] ?: false,
         )
     }
 
@@ -63,6 +69,18 @@ class SettingsRepositoryImpl @Inject constructor(
         context.dataStore.edit { it[Keys.USE_24_HOUR] = use24Hour }
     }
 
+    override suspend fun setThemeMode(mode: ThemeMode) {
+        context.dataStore.edit { it[Keys.THEME_MODE] = mode.name }
+    }
+
+    override suspend fun setSnoozeMinutes(minutes: Int) {
+        context.dataStore.edit { it[Keys.SNOOZE_MINUTES] = minutes }
+    }
+
+    override suspend fun setOnboardingComplete(complete: Boolean) {
+        context.dataStore.edit { it[Keys.ONBOARDING_COMPLETE] = complete }
+    }
+
     private object Keys {
         val DEFAULT_CHALLENGE = stringPreferencesKey("default_challenge")
         val AUTO_SILENCE_MINUTES = intPreferencesKey("auto_silence_minutes")
@@ -70,5 +88,8 @@ class SettingsRepositoryImpl @Inject constructor(
         val MINIMUM_VOLUME_PERCENT = intPreferencesKey("minimum_volume_percent")
         val WAKE_CHECK_MINUTES = intPreferencesKey("wake_check_minutes")
         val USE_24_HOUR = booleanPreferencesKey("use_24_hour")
+        val THEME_MODE = stringPreferencesKey("theme_mode")
+        val SNOOZE_MINUTES = intPreferencesKey("snooze_minutes")
+        val ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
     }
 }

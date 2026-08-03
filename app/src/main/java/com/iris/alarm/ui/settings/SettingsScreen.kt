@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iris.alarm.domain.model.IrisSettings
+import com.iris.alarm.domain.model.ThemeMode
 import com.iris.alarm.domain.model.VisionChallenge
 import com.iris.alarm.ui.theme.IrisTheme
 
@@ -48,6 +49,8 @@ fun SettingsScreen(
         onBack = onBack,
         onOpenPermissions = onOpenPermissions,
         onUse24Hour = viewModel::setUse24Hour,
+        onThemeMode = viewModel::setThemeMode,
+        onSnooze = viewModel::setSnoozeMinutes,
         // Passed as a slot so the preview can render the screen without a
         // Hilt-injected updater behind it.
         updates = { UpdateSection() },
@@ -66,6 +69,8 @@ private fun SettingsContent(
     onBack: () -> Unit,
     onOpenPermissions: () -> Unit,
     onUse24Hour: (Boolean) -> Unit,
+    onThemeMode: (ThemeMode) -> Unit,
+    onSnooze: (Int) -> Unit,
     updates: @Composable () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -91,6 +96,18 @@ private fun SettingsContent(
                 text = "SETTINGS",
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.onBackground,
+            )
+        }
+
+        Setting(
+            title = "APPEARANCE",
+            detail = "The ringing screen stays dark whatever you choose here",
+        ) {
+            ChoiceRow(
+                options = ThemeMode.entries,
+                selected = settings.themeMode,
+                label = { it.displayName.uppercase() },
+                onSelect = onThemeMode,
             )
         }
 
@@ -152,6 +169,19 @@ private fun SettingsContent(
                 selected = settings.minimumVolumePercent,
                 label = { if (it == 0) "DON'T TOUCH" else "$it%" },
                 onSelect = onMinimumVolume,
+            )
+        }
+
+        Setting(
+            title = "SNOOZE",
+            detail = "How long a swipe-left buys. Off removes the snooze side of " +
+                "the swipe entirely.",
+        ) {
+            ChoiceRow(
+                options = IrisSettings.SNOOZE_CHOICES,
+                selected = settings.snoozeMinutes,
+                label = { if (it == 0) "OFF" else "$it MIN" },
+                onSelect = onSnooze,
             )
         }
 
@@ -288,6 +318,8 @@ private fun SettingsPreview() {
             onBack = {},
             onOpenPermissions = {},
             onUse24Hour = {},
+            onThemeMode = {},
+            onSnooze = {},
             updates = {},
         )
     }

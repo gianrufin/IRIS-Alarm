@@ -30,7 +30,8 @@ class AlarmReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val isWakeCheck = intent.action == AlarmContract.ACTION_WAKE_CHECK
-        if (intent.action != AlarmContract.ACTION_ALARM_FIRED && !isWakeCheck) return
+        val isSnooze = intent.action == AlarmContract.ACTION_SNOOZE_FIRED
+        if (intent.action != AlarmContract.ACTION_ALARM_FIRED && !isWakeCheck && !isSnooze) return
 
         val alarmId = intent.getLongExtra(AlarmContract.EXTRA_ALARM_ID, AlarmContract.NO_ALARM_ID)
         Log.i(TAG, if (isWakeCheck) "Wake check for alarm $alarmId" else "Alarm $alarmId fired")
@@ -43,6 +44,10 @@ class AlarmReceiver : BroadcastReceiver() {
                 putExtra(AlarmContract.EXTRA_WAKE_CHECK, isWakeCheck)
             },
         )
+
+        // A snooze ringing again is the same alarm, so it must not re-arm the
+        // schedule or disable a one-shot a second time.
+        if (isSnooze) return
 
         if (isWakeCheck) {
             // The check has fired, so nothing is pending any more; re-arming the

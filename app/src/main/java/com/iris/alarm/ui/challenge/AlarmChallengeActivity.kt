@@ -11,7 +11,17 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.content.getSystemService
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import com.iris.alarm.alarm.AlarmContract
 import com.iris.alarm.alarm.AlarmForegroundService
 import com.iris.alarm.ui.theme.IrisTheme
@@ -40,14 +50,47 @@ class AlarmChallengeActivity : ComponentActivity() {
         onBackPressedDispatcher.addCallback(this) { moveTaskToBack(true) }
 
         setContent {
+            // The ringing screen is always dark, whatever the app theme: this is
+            // a face full of phone in a dark bedroom.
             IrisTheme(darkTheme = true) {
                 val alarm by AlarmForegroundService.ringingAlarm.collectAsStateWithLifecycle()
                 val use24Hour by AlarmForegroundService.use24Hour.collectAsStateWithLifecycle()
-                ChallengeScreen(
-                    alarm = alarm,
-                    use24Hour = use24Hour,
-                    onChallengeSolved = { dismiss() },
-                )
+                val snoozeMinutes by AlarmForegroundService.snoozeMinutes
+                    .collectAsStateWithLifecycle()
+                val isWakeCheck by AlarmForegroundService.ringingIsWakeCheck
+                    .collectAsStateWithLifecycle()
+                var challengeStarted by rememberSaveable { mutableStateOf(false) }
+
+                AnimatedContent(
+                    targetState = challengeStarted,
+                    transitionSpec = {
+                        // The challenge arrives from the right, following the
+                        // direction the card was pushed.
+                        (slideInHorizontally(tween(320)) { it } + fadeIn(tween(320)))
+                            .togetherWith(
+                                slideOutHorizontally(tween(280)) { -it / 4 } +
+                                    fadeOut(tween(220)),
+                            )
+                    },
+                    label = "ringingStage",
+                ) { started ->
+                    if (started) {
+                        ChallengeScreen(
+                            alarm = alarm,
+                            use24Hour = use24Hour,
+                            onChallengeSolved = { dismiss() },
+                        )
+                    } else {
+                        AlarmSwipeScreen(
+                            alarm = alarm,
+                            use24Hour = use24Hour,
+                            isWakeCheck = isWakeCheck,
+                            snoozeMinutes = snoozeMinutes,
+                            onSnooze = { snooze() },
+                            onProceedToChallenge = { challengeStarted = true },
+                        )
+                    }
+                }
             }
         }
 
@@ -62,6 +105,11 @@ class AlarmChallengeActivity : ComponentActivity() {
 
     private fun dismiss() {
         AlarmForegroundService.dismiss(this)
+        finish()
+    }
+
+    private fun snooze() {
+        AlarmForegroundService.snooze(this)
         finish()
     }
 

@@ -3,6 +3,7 @@ package com.iris.alarm.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.iris.alarm.domain.model.IrisSettings
+import com.iris.alarm.domain.model.ThemeMode
 import com.iris.alarm.domain.model.VisionChallenge
 import com.iris.alarm.domain.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -37,6 +38,14 @@ class SettingsViewModel @Inject constructor(
 
     fun setMinimumVolumePercent(percent: Int) {
         viewModelScope.launch { repository.setMinimumVolumePercent(percent) }
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch { repository.setThemeMode(mode) }
+    }
+
+    fun setSnoozeMinutes(minutes: Int) {
+        viewModelScope.launch { repository.setSnoozeMinutes(minutes) }
     }
 
     fun setUse24Hour(use24Hour: Boolean) {

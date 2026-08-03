@@ -49,7 +49,8 @@ import com.iris.alarm.domain.model.IrisSettings
 import com.iris.alarm.domain.model.VisionChallenge
 import androidx.compose.foundation.Image
 import androidx.compose.ui.layout.ContentScale
-import com.iris.alarm.ui.components.NumberWheel
+import com.iris.alarm.ui.components.MeridiemToggle
+import com.iris.alarm.ui.components.TurntableWheel
 import com.iris.alarm.ui.components.isPm
 import com.iris.alarm.ui.components.rememberAnchorThumbnail
 import com.iris.alarm.ui.components.to12Hour
@@ -276,29 +277,40 @@ private fun TimeSelector(
     use24Hour: Boolean,
     onTimeChange: (Int, Int) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {
-            NumberWheel(
+            TurntableWheel(
                 // In 12-hour mode the wheel counts 1..12 and the AM/PM toggle
-                // supplies the rest, so the stored 0..23 hour is converted both ways.
+                // supplies the rest, so the stored 0..23 hour converts both ways.
                 value = if (use24Hour) hour else to12Hour(hour),
                 range = if (use24Hour) 0..23 else 1..12,
                 onValueChange = { picked ->
                     val newHour = if (use24Hour) picked else to24Hour(picked, isPm(hour))
                     onTimeChange(newHour, minute)
                 },
+                // Spinning the 12-hour wheel past noon flips the meridiem, so a
+                // continuous scroll walks the whole day rather than looping
+                // through the same twelve hours.
+                onWrap = if (use24Hour) {
+                    null
+                } else {
+                    { _ -> onTimeChange(to24Hour(to12Hour(hour), !isPm(hour)), minute) }
+                },
                 modifier = Modifier.weight(1f),
             )
             Text(
                 text = ":",
-                style = IrisType.ClockCompact,
+                style = MaterialTheme.typography.displayMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            NumberWheel(
+            TurntableWheel(
                 value = minute,
                 range = 0..59,
                 onValueChange = { onTimeChange(hour, it) },
@@ -307,22 +319,10 @@ private fun TimeSelector(
         }
 
         if (!use24Hour) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                listOf(false, true).forEach { pm ->
-                    val selected = isPm(hour) == pm
-                    Box(modifier = Modifier.weight(1f)) {
-                        Chip(
-                            text = if (pm) "PM" else "AM",
-                            selected = selected,
-                            onClick = { onTimeChange(to24Hour(to12Hour(hour), pm), minute) },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                }
-            }
+            MeridiemToggle(
+                isPm = isPm(hour),
+                onChange = { pm -> onTimeChange(to24Hour(to12Hour(hour), pm), minute) },
+            )
         }
     }
 }

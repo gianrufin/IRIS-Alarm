@@ -135,7 +135,8 @@ private fun DashboardContent(
             ),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 24.dp),
+                // Clears the floating dock, which overlays the content.
+                .padding(top = 24.dp, bottom = 96.dp),
         ) {
             Text(
                 text = "NEW ALARM",

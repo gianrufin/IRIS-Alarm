@@ -1,19 +1,17 @@
 package com.iris.alarm.ui.theme
 
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
+import com.iris.alarm.domain.model.ThemeMode
 
 /**
  * Structural rounding. IRIS uses one radius everywhere something is a container
@@ -53,52 +51,67 @@ private val IrisDarkScheme = darkColorScheme(
 )
 
 /**
- * IRIS is dark-first by design; the light scheme exists only so the app does not
- * look broken if the system forces it, and it keeps the same accent language.
+ * The light scheme is a real design, not a fallback.
+ *
+ * Two colours could not simply be inverted. Amber on white fails contrast for
+ * text, so in light mode it is only ever a *fill* with black on top, and the
+ * darker [IrisColors.AmberInk] carries any amber-coloured text. The neon green
+ * is invisible on white, so light mode uses [IrisColors.NeonInk] instead.
  */
 private val IrisLightScheme = lightColorScheme(
     primary = IrisColors.Amber,
     onPrimary = IrisColors.Black,
-    secondary = IrisColors.Neon,
-    onSecondary = IrisColors.Black,
-    background = IrisColors.White,
-    onBackground = IrisColors.Black,
+    primaryContainer = IrisColors.AmberWash,
+    onPrimaryContainer = IrisColors.AmberInk,
+    secondary = IrisColors.NeonInk,
+    onSecondary = IrisColors.White,
+    secondaryContainer = IrisColors.NeonWash,
+    onSecondaryContainer = IrisColors.NeonInk,
+    tertiary = IrisColors.Ink,
+    onTertiary = IrisColors.White,
+    background = IrisColors.Paper,
+    onBackground = IrisColors.Ink,
     surface = IrisColors.White,
-    onSurface = IrisColors.Black,
-    onSurfaceVariant = IrisColors.Muted,
-    outline = IrisColors.Divider,
+    onSurface = IrisColors.Ink,
+    surfaceVariant = IrisColors.PaperVariant,
+    onSurfaceVariant = IrisColors.InkMuted,
+    surfaceContainer = IrisColors.PaperVariant,
+    surfaceContainerHigh = IrisColors.PaperElevated,
+    outline = IrisColors.InkDivider,
+    outlineVariant = IrisColors.InkDivider,
+    error = IrisColors.ErrorInk,
+    onError = IrisColors.White,
 )
 
 @Composable
 fun IrisTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    /**
-     * Material You wallpaper extraction. Off by default: the identity of IRIS is
-     * pitch black + one accent, and dynamic schemes lift the background off black.
-     */
-    dynamicColor: Boolean = false,
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
+    /** Forces dark regardless of the setting, for the ringing screen at night. */
+    forceDark: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    val colorScheme = when {
-        dynamicColor && darkTheme && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            // Keep the pitch-black canvas; borrow only the accents from the wallpaper.
-            dynamicDarkColorScheme(LocalContext.current).copy(
-                background = IrisColors.Black,
-                onBackground = IrisColors.White,
-                surface = IrisColors.Black,
-                onSurface = IrisColors.White,
-            )
-        }
-
-        darkTheme -> IrisDarkScheme
-        else -> IrisLightScheme
+    val darkTheme = when {
+        forceDark -> true
+        themeMode == ThemeMode.DARK -> true
+        themeMode == ThemeMode.LIGHT -> false
+        else -> isSystemInDarkTheme()
     }
+
+    IrisTheme(darkTheme = darkTheme, content = content)
+}
+
+@Composable
+fun IrisTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    content: @Composable () -> Unit,
+) {
+    val colorScheme = if (darkTheme) IrisDarkScheme else IrisLightScheme
 
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
-            // Edge-to-edge with transparent bars is enabled per-Activity; here we only
-            // keep the status/navigation icon contrast in sync with the scheme.
+            // Edge-to-edge with transparent bars is enabled per-Activity; here we
+            // only keep the status/navigation icon contrast in sync with the scheme.
             val window = (view.context as? android.app.Activity)?.window ?: return@SideEffect
             WindowCompat.getInsetsController(window, view).apply {
                 isAppearanceLightStatusBars = !darkTheme

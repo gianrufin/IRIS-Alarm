@@ -86,6 +86,41 @@ class AlarmScheduler @Inject constructor(
         }
     }
 
+    /**
+     * Re-rings [alarmId] at [triggerAt]. Like the wake check this uses a single
+     * fixed request code, so snoozing twice replaces rather than stacks.
+     */
+    @SuppressLint("MissingPermission")
+    fun scheduleSnooze(alarmId: Long, triggerAt: Long) {
+        val pendingIntent = snoozePendingIntent(alarmId)
+        if (canScheduleExact) {
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                triggerAt,
+                pendingIntent,
+            )
+        } else {
+            alarmManager.setWindow(AlarmManager.RTC_WAKEUP, triggerAt, WINDOW_MILLIS, pendingIntent)
+        }
+    }
+
+    fun cancelSnooze() {
+        alarmManager.cancel(snoozePendingIntent(AlarmContract.NO_ALARM_ID))
+    }
+
+    private fun snoozePendingIntent(alarmId: Long): PendingIntent {
+        val intent = Intent(context, AlarmReceiver::class.java).apply {
+            action = AlarmContract.ACTION_SNOOZE_FIRED
+            putExtra(AlarmContract.EXTRA_ALARM_ID, alarmId)
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            AlarmContract.SNOOZE_REQUEST_CODE,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
     fun cancelWakeCheck() {
         alarmManager.cancel(wakeCheckPendingIntent(alarmId = AlarmContract.NO_ALARM_ID))
     }
