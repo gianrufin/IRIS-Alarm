@@ -146,10 +146,12 @@ it says plainly what breaks. The same rows live in Settings → Permissions.
 ## The ringing screen
 
 A ringing alarm shows the time on a card you push aside: **left snoozes, right
-goes on to the challenge**. The card leans and follows the finger and the side
-you are heading for brightens — the gesture is borrowed from swipe-to-decide card
-decks, kept quiet. It is deliberately a drag across a third of the screen rather
-than a button, because half asleep a button is easy to hit by accident.
+goes on to the challenge**. Two ringed targets sit behind the card and fill in as
+it approaches them, so the commitment is legible before the finger lifts. The
+card leans, lifts slightly and takes the border colour of the side it is heading
+for. It is deliberately a drag across a third of the screen rather than a button,
+because half asleep a button is easy to hit by accident — but a fling counts too,
+provided it agrees with the direction already travelled.
 
 Snooze length is a setting; set it to off and the left half of the swipe goes
 away rather than silently doing nothing.
@@ -328,11 +330,23 @@ that line would quietly get someone to trust a countdown to wake them.
 
 ## Setting the time
 
-The hour and minute wheels are endless: indices wrap onto the real range, so
-spinning past 59 rolls into 00 rather than hitting a wall. Items away from the
-centre tilt back in Z, shrink and fade, which reads as a drum turning rather
-than a list sliding. In 12-hour mode, spinning the hour wheel past 12 flips
-AM/PM, so one continuous scroll walks the whole day.
+A clock face: minutes on the outer ring, hours on the inner one, the time and
+AM/PM in the middle. Both rings are draggable *and* tappable, with hands and
+knobs pointing at the current values.
+
+- The minute ring scrubs **a minute at a time**, not in fives, so exact times are
+  reachable without a second control. Labels appear every five and the nearest
+  one lights up.
+- The ring you grab **keeps the gesture** until you lift, so a sloppy arc cannot
+  jump to the other ring halfway round.
+- The centre is dead to the dial, so tapping AM/PM never reads as a time change.
+- Hands settle with a spring rather than gliding — a knob you let go of should
+  come to rest.
+
+`RadialMath` holds the angle maths (`turns` clockwise from 12 o'clock, and the
+conversions onto each ring) outside the composable, so the wrap cases that
+usually harbour off-by-ones are unit tested: a full turn is 0 and not 60, the top
+of a 12-hour ring reads 12 and not 0, and every minute is reachable.
 
 A new alarm opens at the current time; editing one opens at its own time.
 
