@@ -8,6 +8,7 @@ import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iris.alarm.ui.AppViewModel
+import com.iris.alarm.ui.EntryIntents
 import com.iris.alarm.ui.IrisNavHost
 import com.iris.alarm.ui.theme.IrisTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -17,6 +18,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        // Read once: a rotation must not re-run "set a timer for 5 minutes".
+        val entryPoint = EntryIntents.from(intent)
+
         setContent {
             val appViewModel: AppViewModel = hiltViewModel()
             val settings by appViewModel.settings.collectAsStateWithLifecycle()
@@ -31,6 +35,7 @@ class MainActivity : ComponentActivity() {
                 IrisNavHost(
                     onboardingComplete = current.onboardingComplete,
                     onOnboardingFinished = appViewModel::completeOnboarding,
+                    entryPoint = entryPoint,
                 )
             }
         }

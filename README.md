@@ -330,10 +330,49 @@ three tools:
 - **Pomodoro** — 25/5 focus blocks, a long break every fourth.
 
 All three derive their reading from the monotonic clock rather than accumulating
-ticks, so a dropped frame cannot make them run slow. None of them is an alarm:
-they run only while IRIS is open, and the timer says so on screen. Anything that
-must survive a locked, dozing phone goes through `AlarmManager`, and blurring
-that line would quietly get someone to trust a countdown to wake them.
+ticks, so a dropped frame cannot make them run slow.
+
+They live in `ToolsEngine`, owned by the application rather than by a screen, so
+leaving the app no longer throws away a running stopwatch. `ToolsService` renders
+that state as an ongoing notification with its controls attached — pause, resume,
+lap, skip — and holds no state of its own, which is what stops the notification
+and the screen disagreeing about whether something is paused. It stops itself the
+moment nothing is running.
+
+They are still not alarms: an alarm goes through `AlarmManager` so it survives a
+dozing phone, and blurring that line would get someone to trust a countdown to
+wake them.
+
+The timer takes an exact `MM : SS` as well as presets, and the pomodoro's focus,
+break, long break and cadence are all settable.
+
+## Quick actions and the assistant
+
+Long-pressing the launcher icon offers **create alarm, start timer, start
+stopwatch, start focus**, each landing directly on the thing named.
+
+IRIS also answers the standard clock intents — `SET_ALARM`, `SET_TIMER`,
+`SHOW_ALARMS`, `SHOW_TIMERS` — so "Hey Google, set a timer for five minutes"
+offers it alongside the phone's own clock, arriving with the duration already
+loaded and running.
+
+One honest limit: **Android has no "default alarm app" role to claim.** Unlike
+the browser or the SMS app, there is no setting that makes one clock app the
+system's. The chooser appears because more than one installed app answers those
+intents, and picking "always" is the user's own per-intent default.
+
+## Creating an alarm
+
+Three steps rather than one long form: **when**, **how you'll stop it**, then the
+details. The single form buried the challenge — the one choice that actually
+distinguishes IRIS — under sound and vibration toggles, and left the anchor
+capture floating in a row of its own instead of belonging to the choice that
+needs it.
+
+Each challenge card animates when selected, and the motion is specific to what it
+does: the smile breathes, the target sweeps like a scanner, the light glows. Each
+also says what it costs you at 6am, which is the real difference between them —
+a smile can be done in bed, an anchor cannot.
 
 ## Setting the time
 

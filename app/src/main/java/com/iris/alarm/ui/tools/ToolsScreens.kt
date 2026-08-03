@@ -28,7 +28,11 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,12 +40,27 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.iris.alarm.ui.EntryPoint
 import com.iris.alarm.ui.theme.IrisType
 
 /** Countdown timer. */
 @Composable
-fun TimerScreen(modifier: Modifier = Modifier, viewModel: TimerViewModel = hiltViewModel()) {
+fun TimerScreen(
+    modifier: Modifier = Modifier,
+    requested: EntryPoint.Timer? = null,
+    viewModel: TimerViewModel = hiltViewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+
+    // Applied once, so returning to the tab does not restart the timer the
+    // assistant asked for half an hour ago.
+    var appliedRequest by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(requested) {
+        if (appliedRequest || requested == null || requested.seconds <= 0) return@LaunchedEffect
+        appliedRequest = true
+        viewModel.setDuration(requested.seconds * 1000L)
+        if (requested.startImmediately) viewModel.toggle()
+    }
 
     ToolScaffold(
         title = "TIMER",
@@ -63,6 +82,13 @@ fun TimerScreen(modifier: Modifier = Modifier, viewModel: TimerViewModel = hiltV
             enabled = !state.running,
             selected = state.durationMillis,
             onSelect = viewModel::setDuration,
+        )
+
+        DurationInput(
+            minutes = (state.durationMillis / 60_000L).toInt(),
+            seconds = ((state.durationMillis / 1000L) % 60).toInt(),
+            enabled = !state.running,
+            onChange = viewModel::setDuration,
         )
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -183,9 +209,11 @@ fun PomodoroScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            repeat(4) { index ->
-                val done = state.completedFocusBlocks % 4 > index ||
-                    (state.completedFocusBlocks > 0 && state.completedFocusBlocks % 4 == 0)
+            val perLongBreak = state.plan.blocksPerLongBreak.coerceAtLeast(1)
+            repeat(perLongBreak) { index ->
+                val inCycle = state.completedFocusBlocks % perLongBreak
+                val done = inCycle > index ||
+                    (state.completedFocusBlocks > 0 && inCycle == 0)
                 Box(
                     modifier = Modifier
                         .size(10.dp)
@@ -221,6 +249,43 @@ fun PomodoroScreen(
                 modifier = Modifier.weight(1f),
             )
         }
+
+        ChoiceStrip(
+            title = "FOCUS",
+            options = PomodoroPlan.FOCUS_CHOICES,
+            selected = state.plan.focusMinutes,
+            label = { "$it MIN" },
+            onSelect = { minutes ->
+                viewModel.updatePlan { it.copy(focusMinutes = minutes) }
+            },
+        )
+        ChoiceStrip(
+            title = "BREAK",
+            options = PomodoroPlan.SHORT_BREAK_CHOICES,
+            selected = state.plan.shortBreakMinutes,
+            label = { "$it MIN" },
+            onSelect = { minutes ->
+                viewModel.updatePlan { it.copy(shortBreakMinutes = minutes) }
+            },
+        )
+        ChoiceStrip(
+            title = "LONG BREAK",
+            options = PomodoroPlan.LONG_BREAK_CHOICES,
+            selected = state.plan.longBreakMinutes,
+            label = { "$it MIN" },
+            onSelect = { minutes ->
+                viewModel.updatePlan { it.copy(longBreakMinutes = minutes) }
+            },
+        )
+        ChoiceStrip(
+            title = "LONG BREAK EVERY",
+            options = PomodoroPlan.BLOCKS_CHOICES,
+            selected = state.plan.blocksPerLongBreak,
+            label = { "$it BLOCKS" },
+            onSelect = { blocks ->
+                viewModel.updatePlan { it.copy(blocksPerLongBreak = blocks) }
+            },
+        )
 
         Text(
             text = "RESET",

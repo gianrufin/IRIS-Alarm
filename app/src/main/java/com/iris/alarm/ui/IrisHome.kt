@@ -55,12 +55,22 @@ enum class HomeTab(val label: String, val icon: ImageVector) {
  */
 @Composable
 fun IrisHome(
+    entryPoint: EntryPoint = EntryPoint.Home,
     onAddAlarm: () -> Unit,
     onEditAlarm: (Long) -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var tab by rememberSaveable { mutableStateOf(HomeTab.ALARMS) }
+    var tab by rememberSaveable {
+        mutableStateOf(
+            when (entryPoint) {
+                is EntryPoint.Timer -> HomeTab.TIMER
+                EntryPoint.Stopwatch -> HomeTab.STOPWATCH
+                EntryPoint.Pomodoro -> HomeTab.POMODORO
+                else -> HomeTab.ALARMS
+            },
+        )
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         AnimatedContent(
@@ -86,7 +96,10 @@ fun IrisHome(
                     onOpenSettings = onOpenSettings,
                 )
 
-                HomeTab.TIMER -> TimerScreen()
+                HomeTab.TIMER -> TimerScreen(
+                    // "Set a timer for five minutes" arrives here already loaded.
+                    requested = entryPoint as? EntryPoint.Timer,
+                )
                 HomeTab.STOPWATCH -> StopwatchScreen()
                 HomeTab.POMODORO -> PomodoroScreen()
             }

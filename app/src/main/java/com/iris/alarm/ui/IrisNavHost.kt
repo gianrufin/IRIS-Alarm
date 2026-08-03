@@ -7,7 +7,12 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
@@ -41,6 +46,7 @@ private const val TRANSITION_MILLIS = 260
 fun IrisNavHost(
     onboardingComplete: Boolean,
     onOnboardingFinished: () -> Unit,
+    entryPoint: EntryPoint = EntryPoint.Home,
     modifier: Modifier = Modifier,
 ) {
     val navController = rememberNavController()
@@ -79,7 +85,18 @@ fun IrisNavHost(
         }
 
         composable(Routes.DASHBOARD) {
+            // A "set an alarm" request opens the editor straight away, once.
+            var handledEntry by rememberSaveable { mutableStateOf(false) }
+            LaunchedEffect(entryPoint) {
+                if (handledEntry) return@LaunchedEffect
+                handledEntry = true
+                if (entryPoint is EntryPoint.NewAlarm) {
+                    navController.navigate(Routes.editor(AlarmEditorViewModel.NEW_ALARM_ID))
+                }
+            }
+
             IrisHome(
+                entryPoint = entryPoint,
                 onAddAlarm = {
                     navController.navigate(Routes.editor(AlarmEditorViewModel.NEW_ALARM_ID))
                 },

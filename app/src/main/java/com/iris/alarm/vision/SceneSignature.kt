@@ -71,32 +71,23 @@ data class SceneSignature(
         }
 
         /**
-         * Reads the luminance plane of a camera frame directly. YUV_420_888's Y
-         * plane *is* the greyscale image, so there is no colour conversion and no
-         * Bitmap allocation on the analysis thread.
+         * Fingerprints a camera frame, read in display orientation so a phone
+         * held differently from at capture still compares like for like.
          */
-        fun from(image: ImageProxy): SceneSignature? {
-            val plane = image.planes.firstOrNull() ?: return null
-            val buffer = plane.buffer
-            val rowStride = plane.rowStride
-            val pixelStride = plane.pixelStride
-            val width = image.width
-            val height = image.height
-            if (width <= 0 || height <= 0) return null
+        fun from(image: ImageProxy): SceneSignature? =
+            LuminancePlane.from(image)?.let(::from)
 
-            fun luminanceAt(x: Int, y: Int): Int {
-                val index = y * rowStride + x * pixelStride
-                if (index < 0 || index >= buffer.limit()) return 0
-                return buffer.get(index).toInt() and 0xFF
-            }
+        fun from(plane: LuminancePlane): SceneSignature {
+            val width = plane.width
+            val height = plane.height
 
             // Nearest-neighbour downscale to the hash grid.
             val samples = IntArray(SAMPLE_WIDTH * SAMPLE_HEIGHT)
             for (row in 0 until SAMPLE_HEIGHT) {
-                val sourceY = (row * height / SAMPLE_HEIGHT).coerceIn(0, height - 1)
+                val sourceY = row * height / SAMPLE_HEIGHT
                 for (column in 0 until SAMPLE_WIDTH) {
-                    val sourceX = (column * width / SAMPLE_WIDTH).coerceIn(0, width - 1)
-                    samples[row * SAMPLE_WIDTH + column] = luminanceAt(sourceX, sourceY)
+                    val sourceX = column * width / SAMPLE_WIDTH
+                    samples[row * SAMPLE_WIDTH + column] = plane.luminanceAt(sourceX, sourceY)
                 }
             }
 
@@ -111,8 +102,8 @@ data class SceneSignature(
                 }
             }
 
-            // The histogram is sampled on a coarser grid than the frame so a 4K
-            // preview costs the same as a 720p one.
+            // The histogram is sampled on a coarse grid, so a 4K preview costs
+            // the same as a 720p one.
             val histogram = FloatArray(HISTOGRAM_BUCKETS)
             var counted = 0
             val stepX = (width / HISTOGRAM_SAMPLE_SIDE).coerceAtLeast(1)
@@ -121,15 +112,16 @@ data class SceneSignature(
             while (y < height) {
                 var x = 0
                 while (x < width) {
-                    val bucket = luminanceAt(x, y) * HISTOGRAM_BUCKETS / 256
+                    val bucket = plane.luminanceAt(x, y) * HISTOGRAM_BUCKETS / 256
                     histogram[bucket.coerceIn(0, HISTOGRAM_BUCKETS - 1)]++
                     counted++
                     x += stepX
                 }
                 y += stepY
             }
-            if (counted == 0) return null
-            for (i in histogram.indices) histogram[i] /= counted
+            if (counted > 0) {
+                for (i in histogram.indices) histogram[i] /= counted
+            }
 
             return SceneSignature(hash, histogram)
         }

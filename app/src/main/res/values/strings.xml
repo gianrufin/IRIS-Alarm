@@ -8,4 +8,28 @@
     <string name="notification_ringing_title">IRIS ALARM</string>
     <string name="notification_ringing_fallback_challenge">Mirror Iris</string>
     <string name="notification_ringing_text">Tap to complete %1$s</string>
+
+    <string name="notification_snooze">Snooze %1$d min</string>
+    <string name="notification_stop">Stop</string>
+
+    <string name="channel_tools_name">Timers and stopwatch</string>
+    <string name="channel_tools_description">Shown while a timer, stopwatch or focus block is running.</string>
+
+    <string name="tools_timer">Timer</string>
+    <string name="tools_timer_done">Time</string>
+    <string name="tools_stopwatch">Stopwatch</string>
+    <string name="tools_pause">Pause</string>
+    <string name="tools_resume">Resume</string>
+    <string name="tools_reset">Reset</string>
+    <string name="tools_lap">Lap</string>
+    <string name="tools_skip">Skip</string>
+
+    <string name="shortcut_alarm_short">Alarm</string>
+    <string name="shortcut_alarm_long">Create an alarm</string>
+    <string name="shortcut_timer_short">Timer</string>
+    <string name="shortcut_timer_long">Start a timer</string>
+    <string name="shortcut_stopwatch_short">Stopwatch</string>
+    <string name="shortcut_stopwatch_long">Start the stopwatch</string>
+    <string name="shortcut_focus_short">Focus</string>
+    <string name="shortcut_focus_long">Start a focus block</string>
 </resources>

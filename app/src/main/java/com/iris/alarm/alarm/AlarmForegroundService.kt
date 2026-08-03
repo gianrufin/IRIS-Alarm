@@ -131,6 +131,9 @@ class AlarmForegroundService : Service() {
 
             _use24Hour.value = settings.use24Hour
             _snoozeMinutes.value = settings.snoozeMinutes
+            // Re-post now the snooze length is known, so the banner carries its
+            // action rather than appearing without one.
+            promoteToForeground(alarm, alarmId, settings.snoozeMinutes)
             raiseVolumeFloor(settings.minimumVolumePercent)
             startAudio(alarm?.soundUri?.let(Uri::parse), settings.volumeRampSeconds)
             if (alarm?.vibrate != false) startVibration()
@@ -144,8 +147,9 @@ class AlarmForegroundService : Service() {
         }
     }
 
-    private fun promoteToForeground(alarm: Alarm?, alarmId: Long) {
-        val notification = AlarmNotifications.buildRingingNotification(this, alarm, alarmId)
+    private fun promoteToForeground(alarm: Alarm?, alarmId: Long, snoozeMinutes: Int = 0) {
+        val notification =
+            AlarmNotifications.buildRingingNotification(this, alarm, alarmId, snoozeMinutes)
         ServiceCompat.startForeground(
             this,
             AlarmNotifications.RINGING_NOTIFICATION_ID,

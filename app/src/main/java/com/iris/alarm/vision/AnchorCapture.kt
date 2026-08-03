@@ -26,13 +26,16 @@ data class CapturedAnchor(
  */
 object AnchorCapture {
 
-    private const val THUMBNAIL_WIDTH = 96
-    private const val THUMBNAIL_HEIGHT = 128
+    private const val THUMBNAIL_SHORT = 96
+    private const val THUMBNAIL_LONG = 128
     private const val DIRECTORY = "anchors"
 
     fun capture(context: Context, image: ImageProxy): CapturedAnchor? {
-        val signature = SceneSignature.from(image) ?: return null
-        val bitmap = luminanceThumbnail(image) ?: return null
+        // Read once, in display orientation, so the stored thumbnail is the way
+        // up the user framed it and the signature matches what they will see.
+        val plane = LuminancePlane.from(image) ?: return null
+        val signature = SceneSignature.from(plane)
+        val bitmap = luminanceThumbnail(plane) ?: return null
         val path = write(context, bitmap) ?: return null
         return CapturedAnchor(signature, path)
     }
@@ -43,37 +46,28 @@ object AnchorCapture {
         runCatching { File(path).delete() }
     }
 
-    private fun luminanceThumbnail(image: ImageProxy): Bitmap? {
-        val plane = image.planes.firstOrNull() ?: return null
-        val buffer = plane.buffer
-        val rowStride = plane.rowStride
-        val pixelStride = plane.pixelStride
-        val width = image.width
-        val height = image.height
-        if (width <= 0 || height <= 0) return null
+    /**
+     * Keeps the frame's aspect ratio rather than squashing it into a fixed box,
+     * so a landscape capture is stored landscape and still looks like the place.
+     */
+    private fun luminanceThumbnail(plane: LuminancePlane): Bitmap? {
+        if (plane.width <= 0 || plane.height <= 0) return null
 
-        val pixels = IntArray(THUMBNAIL_WIDTH * THUMBNAIL_HEIGHT)
-        for (row in 0 until THUMBNAIL_HEIGHT) {
-            val sourceY = (row * height / THUMBNAIL_HEIGHT).coerceIn(0, height - 1)
-            for (column in 0 until THUMBNAIL_WIDTH) {
-                val sourceX = (column * width / THUMBNAIL_WIDTH).coerceIn(0, width - 1)
-                val index = sourceY * rowStride + sourceX * pixelStride
-                val luminance = if (index in 0 until buffer.limit()) {
-                    buffer.get(index).toInt() and 0xFF
-                } else {
-                    0
-                }
-                pixels[row * THUMBNAIL_WIDTH + column] =
-                    Color.rgb(luminance, luminance, luminance)
+        val portrait = plane.height >= plane.width
+        val width = if (portrait) THUMBNAIL_SHORT else THUMBNAIL_LONG
+        val height = if (portrait) THUMBNAIL_LONG else THUMBNAIL_SHORT
+
+        val pixels = IntArray(width * height)
+        for (row in 0 until height) {
+            val sourceY = row * plane.height / height
+            for (column in 0 until width) {
+                val sourceX = column * plane.width / width
+                val luminance = plane.luminanceAt(sourceX, sourceY)
+                pixels[row * width + column] = Color.rgb(luminance, luminance, luminance)
             }
         }
 
-        return Bitmap.createBitmap(
-            pixels,
-            THUMBNAIL_WIDTH,
-            THUMBNAIL_HEIGHT,
-            Bitmap.Config.ARGB_8888,
-        )
+        return Bitmap.createBitmap(pixels, width, height, Bitmap.Config.ARGB_8888)
     }
 
     private fun write(context: Context, bitmap: Bitmap): String? {

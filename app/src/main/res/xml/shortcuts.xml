@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-press the launcher icon. Each one lands directly on the thing named,
+     so "start a stopwatch" is one gesture rather than open-then-navigate. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <shortcut
+        android:shortcutId="new_alarm"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_alarm"
+        android:shortcutShortLabel="@string/shortcut_alarm_short"
+        android:shortcutLongLabel="@string/shortcut_alarm_long">
+        <intent
+            android:action="com.iris.alarm.action.SHORTCUT_NEW_ALARM"
+            android:targetClass="com.iris.alarm.MainActivity"
+            android:targetPackage="com.iris.alarm" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="timer"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_timer"
+        android:shortcutShortLabel="@string/shortcut_timer_short"
+        android:shortcutLongLabel="@string/shortcut_timer_long">
+        <intent
+            android:action="com.iris.alarm.action.SHORTCUT_TIMER"
+            android:targetClass="com.iris.alarm.MainActivity"
+            android:targetPackage="com.iris.alarm" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="stopwatch"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_stopwatch"
+        android:shortcutShortLabel="@string/shortcut_stopwatch_short"
+        android:shortcutLongLabel="@string/shortcut_stopwatch_long">
+        <intent
+            android:action="com.iris.alarm.action.SHORTCUT_STOPWATCH"
+            android:targetClass="com.iris.alarm.MainActivity"
+            android:targetPackage="com.iris.alarm" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="focus"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_focus"
+        android:shortcutShortLabel="@string/shortcut_focus_short"
+        android:shortcutLongLabel="@string/shortcut_focus_long">
+        <intent
+            android:action="com.iris.alarm.action.SHORTCUT_POMODORO"
+            android:targetClass="com.iris.alarm.MainActivity"
+            android:targetPackage="com.iris.alarm" />
+    </shortcut>
+</shortcuts>

@@ -6,6 +6,14 @@ import android.media.RingtoneManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,6 +25,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -25,7 +34,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -34,28 +42,37 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.IntentCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iris.alarm.domain.model.IrisSettings
 import com.iris.alarm.domain.model.VisionChallenge
-import androidx.compose.foundation.Image
-import androidx.compose.ui.layout.ContentScale
 import com.iris.alarm.ui.components.RadialTimePicker
+import com.iris.alarm.ui.components.formatClock
 import com.iris.alarm.ui.components.rememberAnchorThumbnail
-import com.iris.alarm.ui.components.challengeIcon
-import com.iris.alarm.ui.theme.IrisTheme
 import java.time.DayOfWeek
 
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * Building an alarm, one decision at a time: when, how you will have to stop it,
+ * then the details.
+ *
+ * A single long form asked for everything at once and buried the challenge —
+ * the one choice that actually distinguishes IRIS — under sound and vibration
+ * toggles. Steps also give the anchor capture somewhere to belong: it is part of
+ * choosing Target Iris, not a separate row further down the page.
+ */
 @Composable
 fun AlarmEditorScreen(
     onDone: () -> Unit,
@@ -66,6 +83,196 @@ fun AlarmEditorScreen(
     val draft by viewModel.draft.collectAsStateWithLifecycle()
     val use24Hour by viewModel.use24Hour.collectAsStateWithLifecycle()
     val canSave by viewModel.canSave.collectAsStateWithLifecycle()
+
+    // Editing jumps straight to the full set of steps rather than walking an
+    // existing alarm through a wizard it has already been through.
+    var step by rememberSaveable { mutableIntStateOf(0) }
+    val lastStep = STEPS.lastIndex
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .safeDrawingPadding(),
+    ) {
+        StepHeader(
+            step = step,
+            title = STEPS[step],
+            isExisting = viewModel.isExisting,
+            summary = draft.summaryFor(step, use24Hour),
+            onBack = { if (step > 0) step-- else onDone() },
+        )
+
+        Box(modifier = Modifier.weight(1f)) {
+            AnimatedContent(
+                targetState = step,
+                transitionSpec = {
+                    val forward = targetState > initialState
+                    val direction = if (forward) 1 else -1
+                    (
+                        slideInHorizontally(tween(280)) { it * direction / 3 } +
+                            fadeIn(tween(280))
+                        ).togetherWith(
+                        slideOutHorizontally(tween(220)) { -it * direction / 3 } +
+                            fadeOut(tween(180)),
+                    )
+                },
+                label = "editorStep",
+            ) { current ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(24.dp),
+                ) {
+                    when (current) {
+                        0 -> TimeStep(
+                            hour = draft.hour,
+                            minute = draft.minute,
+                            use24Hour = use24Hour,
+                            repeatDays = draft.repeatDays,
+                            onTimeChange = viewModel::setTime,
+                            onToggleDay = viewModel::toggleDay,
+                        )
+
+                        1 -> ChallengeStep(
+                            selected = draft.challenge,
+                            anchorThumbnail = draft.anchorThumbnailPath,
+                            onSelect = viewModel::setChallenge,
+                            onCaptureAnchor = onCaptureAnchor,
+                        )
+
+                        else -> DetailsStep(viewModel = viewModel)
+                    }
+
+                    Box(Modifier.height(8.dp))
+                }
+            }
+        }
+
+        Footer(
+            step = step,
+            lastStep = lastStep,
+            canSave = canSave,
+            isExisting = viewModel.isExisting,
+            onNext = { step++ },
+            onSave = { viewModel.save(onDone) },
+            onDelete = { viewModel.delete(onDone) },
+        )
+    }
+}
+
+private val STEPS = listOf("WHEN", "HOW YOU'LL STOP IT", "DETAILS")
+
+@Composable
+private fun StepHeader(
+    step: Int,
+    title: String,
+    isExisting: Boolean,
+    summary: String?,
+    onBack: () -> Unit,
+) {
+    Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = if (step == 0 && !isExisting) "CANCEL" else "BACK",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .clickable(onClick = onBack)
+                    .padding(vertical = 8.dp),
+            )
+            Text(
+                text = "STEP ${step + 1} OF ${STEPS.size}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.End,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(vertical = 8.dp),
+            )
+        }
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(vertical = 12.dp),
+        ) {
+            STEPS.indices.forEach { index ->
+                Box(
+                    modifier = Modifier
+                        .height(3.dp)
+                        .weight(1f)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(
+                            if (index <= step) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.outline
+                            },
+                        ),
+                )
+            }
+        }
+
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        // Carries the earlier decisions forward, so a step is never answered
+        // without the context of what came before it.
+        summary?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun TimeStep(
+    hour: Int,
+    minute: Int,
+    use24Hour: Boolean,
+    repeatDays: Set<DayOfWeek>,
+    onTimeChange: (Int, Int) -> Unit,
+    onToggleDay: (DayOfWeek) -> Unit,
+) {
+    RadialTimePicker(
+        hour = hour,
+        minute = minute,
+        use24Hour = use24Hour,
+        onTimeChange = onTimeChange,
+    )
+
+    Section(title = "REPEAT") {
+        DayPicker(selected = repeatDays, onToggle = onToggleDay)
+    }
+}
+
+@Composable
+private fun ChallengeStep(
+    selected: VisionChallenge,
+    anchorThumbnail: String?,
+    onSelect: (VisionChallenge) -> Unit,
+    onCaptureAnchor: () -> Unit,
+) {
+    ChallengePicker(selected = selected, onSelect = onSelect)
+
+    // Capturing belongs to the choice, not to a row further down the page.
+    if (selected == VisionChallenge.ANCHOR) {
+        Section(title = "YOUR TARGET SPOT") {
+            AnchorPicker(thumbnailPath = anchorThumbnail, onCapture = onCaptureAnchor)
+        }
+    }
+}
+
+@Composable
+private fun DetailsStep(viewModel: AlarmEditorViewModel) {
+    val draft by viewModel.draft.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     val soundPicker = rememberLauncherForActivityResult(
@@ -73,10 +280,12 @@ fun AlarmEditorScreen(
     ) { result ->
         if (result.resultCode != Activity.RESULT_OK) return@rememberLauncherForActivityResult
         val uri = result.data?.let {
-            IntentCompat.getParcelableExtra(it, RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
+            IntentCompat.getParcelableExtra(
+                it,
+                RingtoneManager.EXTRA_RINGTONE_PICKED_URI,
+                Uri::class.java,
+            )
         }
-        // A null pick is "Silent"; store it as null so the service knows to fall
-        // back to the system alarm tone only when nothing was ever chosen.
         viewModel.setSound(uri?.toString())
     }
 
@@ -88,163 +297,97 @@ fun AlarmEditorScreen(
             ?: "DEFAULT ALARM"
     }
 
+    Section(title = "LABEL") {
+        OutlinedTextField(
+            value = draft.label,
+            onValueChange = viewModel::setLabel,
+            placeholder = {
+                Text(
+                    text = "Wake up",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+            textStyle = MaterialTheme.typography.titleMedium,
+            singleLine = true,
+            shape = RoundedCornerShape(20.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                cursorColor = MaterialTheme.colorScheme.primary,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+
+    Section(title = "SOUND") {
+        SettingRow(
+            label = soundTitle,
+            onClick = { soundPicker.launch(ringtonePickerIntent(draft.soundUri)) },
+        )
+    }
+
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = "VIBRATE",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        Switch(
+            checked = draft.vibrate,
+            onCheckedChange = viewModel::setVibrate,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = MaterialTheme.colorScheme.background,
+                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                uncheckedTrackColor = MaterialTheme.colorScheme.background,
+                uncheckedBorderColor = MaterialTheme.colorScheme.outline,
+            ),
+        )
+    }
+
+    Section(title = "AUTO-SILENCE") {
+        OverrideRow(
+            options = IrisSettings.AUTO_SILENCE_CHOICES,
+            selected = draft.autoSilenceMinutes,
+            label = { "$it MIN" },
+            onSelect = viewModel::setAutoSilenceOverride,
+        )
+    }
+
+    Section(title = "VOLUME RAMP") {
+        OverrideRow(
+            options = IrisSettings.RAMP_CHOICES,
+            selected = draft.volumeRampSeconds,
+            label = { if (it == 0) "OFF" else "$it SEC" },
+            onSelect = viewModel::setVolumeRampOverride,
+        )
+    }
+}
+
+@Composable
+private fun Footer(
+    step: Int,
+    lastStep: Int,
+    canSave: Boolean,
+    isExisting: Boolean,
+    onNext: () -> Unit,
+    onSave: () -> Unit,
+    onDelete: () -> Unit,
+) {
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .safeDrawingPadding(),
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(32.dp),
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 32.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = if (viewModel.isExisting) "EDIT ALARM" else "NEW ALARM",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = "CANCEL",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .clickable(onClick = onDone)
-                        .padding(8.dp),
-                )
-            }
-
-            TimeSelector(
-                hour = draft.hour,
-                minute = draft.minute,
-                use24Hour = use24Hour,
-                onTimeChange = viewModel::setTime,
-            )
-
-            Section(title = "REPEAT") {
-                DayPicker(selected = draft.repeatDays, onToggle = viewModel::toggleDay)
-            }
-
-            Section(title = "CHALLENGE") {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    VisionChallenge.entries.forEach { challenge ->
-                        ChallengeOption(
-                            challenge = challenge,
-                            selected = draft.challenge == challenge,
-                            onClick = { viewModel.setChallenge(challenge) },
-                        )
-                    }
-                }
-            }
-
-            if (draft.challenge == VisionChallenge.ANCHOR) {
-                Section(title = "TARGET SPOT") {
-                    AnchorPicker(
-                        thumbnailPath = draft.anchorThumbnailPath,
-                        onCapture = onCaptureAnchor,
-                    )
-                }
-            }
-
-            Section(title = "LABEL") {
-                OutlinedTextField(
-                    value = draft.label,
-                    onValueChange = viewModel::setLabel,
-                    placeholder = {
-                        Text(
-                            text = "Wake up",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    },
-                    textStyle = MaterialTheme.typography.titleMedium,
-                    singleLine = true,
-                    shape = RoundedCornerShape(20.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = MaterialTheme.colorScheme.onBackground,
-                        unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                        cursorColor = MaterialTheme.colorScheme.primary,
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-
-            Section(title = "SOUND") {
-                SettingRow(
-                    label = soundTitle,
-                    onClick = {
-                        soundPicker.launch(ringtonePickerIntent(draft.soundUri))
-                    },
-                )
-            }
-
-            Section(title = "AUTO-SILENCE") {
-                OverrideRow(
-                    options = IrisSettings.AUTO_SILENCE_CHOICES,
-                    selected = draft.autoSilenceMinutes,
-                    label = { "$it MIN" },
-                    onSelect = viewModel::setAutoSilenceOverride,
-                )
-            }
-
-            Section(title = "VOLUME RAMP") {
-                OverrideRow(
-                    options = IrisSettings.RAMP_CHOICES,
-                    selected = draft.volumeRampSeconds,
-                    label = { if (it == 0) "OFF" else "$it SEC" },
-                    onSelect = viewModel::setVolumeRampOverride,
-                )
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "VIBRATE",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
-                )
-                Switch(
-                    checked = draft.vibrate,
-                    onCheckedChange = viewModel::setVibrate,
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = MaterialTheme.colorScheme.background,
-                        checkedTrackColor = MaterialTheme.colorScheme.primary,
-                        uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        uncheckedTrackColor = MaterialTheme.colorScheme.background,
-                        uncheckedBorderColor = MaterialTheme.colorScheme.outline,
-                    ),
-                )
-            }
-
-            if (viewModel.isExisting) {
-                Text(
-                    text = "DELETE ALARM",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier
-                        .clickable { viewModel.delete(onDone) }
-                        .padding(vertical = 8.dp),
-                )
-            }
-        }
+        val onLast = step == lastStep
+        val enabled = !onLast || canSave
 
         Button(
-            onClick = { viewModel.save(onDone) },
-            enabled = canSave,
+            onClick = { if (onLast) onSave() else onNext() },
+            enabled = enabled,
             shape = RoundedCornerShape(32.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.onBackground,
@@ -252,32 +395,77 @@ fun AlarmEditorScreen(
                 disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                 disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
             ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 24.dp),
+            modifier = Modifier.fillMaxWidth(),
         ) {
             Text(
-                text = if (canSave) "SAVE" else "CAPTURE A TARGET FIRST",
+                text = when {
+                    !onLast -> "NEXT"
+                    canSave -> "SAVE ALARM"
+                    else -> "CAPTURE A TARGET FIRST"
+                },
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.padding(vertical = 10.dp),
+            )
+        }
+
+        if (isExisting && onLast) {
+            Text(
+                text = "DELETE ALARM",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.error,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onDelete)
+                    .padding(8.dp),
             )
         }
     }
 }
 
+/** What the header shows about the decisions already taken. */
+private fun com.iris.alarm.domain.model.Alarm.summaryFor(step: Int, use24Hour: Boolean): String? =
+    when (step) {
+        0 -> null
+        1 -> formatClock(hour, minute, use24Hour).inline()
+        else -> "${formatClock(hour, minute, use24Hour).inline()} · ${challenge.displayName.uppercase()}"
+    }
+
 @Composable
-private fun TimeSelector(
-    hour: Int,
-    minute: Int,
-    use24Hour: Boolean,
-    onTimeChange: (Int, Int) -> Unit,
-) {
-    RadialTimePicker(
-        hour = hour,
-        minute = minute,
-        use24Hour = use24Hour,
-        onTimeChange = onTimeChange,
-    )
+private fun DayPicker(selected: Set<DayOfWeek>, onToggle: (DayOfWeek) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        DayOfWeek.entries.forEach { day ->
+            val isOn = day in selected
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(if (isOn) MaterialTheme.colorScheme.primary else Color.Transparent)
+                    .border(
+                        width = 1.dp,
+                        color = if (isOn) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.outline
+                        },
+                        shape = RoundedCornerShape(22.dp),
+                    )
+                    .clickable { onToggle(day) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = day.name.take(1),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (isOn) {
+                        MaterialTheme.colorScheme.onPrimary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
+        }
+    }
 }
 
 /** The captured spot for an anchor alarm, or the prompt to capture one. */
@@ -317,94 +505,6 @@ private fun AnchorPicker(thumbnailPath: String?, onCapture: () -> Unit) {
                 } else {
                     "You will have to come back here to stop the alarm"
                 },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun DayPicker(selected: Set<DayOfWeek>, onToggle: (DayOfWeek) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        DayOfWeek.entries.forEach { day ->
-            val isOn = day in selected
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(
-                        if (isOn) MaterialTheme.colorScheme.primary else Color.Transparent,
-                    )
-                    .border(
-                        width = 1.dp,
-                        color = if (isOn) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.outline
-                        },
-                        shape = RoundedCornerShape(22.dp),
-                    )
-                    .clickable { onToggle(day) },
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = day.name.take(1),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (isOn) {
-                        MaterialTheme.colorScheme.onPrimary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ChallengeOption(
-    challenge: VisionChallenge,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(28.dp))
-            .border(
-                width = if (selected) 2.dp else 1.dp,
-                color = if (selected) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.outline
-                },
-                shape = RoundedCornerShape(28.dp),
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 20.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Icon(
-            imageVector = challenge.challengeIcon(),
-            contentDescription = null,
-            tint = if (selected) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            modifier = Modifier.size(24.dp),
-        )
-        Column {
-            Text(
-                text = challenge.displayName.uppercase(),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-            Text(
-                text = challenge.description(),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -503,12 +603,6 @@ private fun SettingRow(label: String, onClick: () -> Unit) {
     )
 }
 
-private fun VisionChallenge.description(): String = when (this) {
-    VisionChallenge.SMILE -> "Hold a smile at the front camera for 3 seconds"
-    VisionChallenge.ANCHOR -> "Go back to a spot you capture now"
-    VisionChallenge.LUMEN -> "Walk somewhere bright until the sensor clears 500 lux"
-}
-
 private fun ringtonePickerIntent(currentUri: String?): Intent =
     Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
         putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
@@ -521,25 +615,3 @@ private fun ringtonePickerIntent(currentUri: String?): Intent =
                 ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),
         )
     }
-
-@Preview(showBackground = true, backgroundColor = 0xFF000000)
-@Composable
-private fun ChallengeOptionPreview() {
-    IrisTheme(darkTheme = true) {
-        Column(
-            modifier = Modifier
-                .background(MaterialTheme.colorScheme.background)
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            VisionChallenge.entries.forEach {
-                ChallengeOption(
-                    challenge = it,
-                    selected = it == VisionChallenge.SMILE,
-                    onClick = {},
-                )
-            }
-            DayPicker(selected = setOf(DayOfWeek.MONDAY, DayOfWeek.FRIDAY), onToggle = {})
-        }
-    }
-}

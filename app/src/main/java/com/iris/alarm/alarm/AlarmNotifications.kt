@@ -21,6 +21,16 @@ object AlarmNotifications {
     const val CHANNEL_ID = "iris_alarm_ringing"
     const val RINGING_NOTIFICATION_ID = 4711
 
+    private fun snoozePendingIntent(context: Context, alarmId: Long): PendingIntent =
+        PendingIntent.getService(
+            context,
+            AlarmContract.triggerRequestCode(alarmId),
+            Intent(context, AlarmForegroundService::class.java).apply {
+                action = AlarmContract.ACTION_SNOOZE
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
     fun ensureChannel(context: Context) {
         val channel = NotificationChannel(
             CHANNEL_ID,
@@ -36,7 +46,12 @@ object AlarmNotifications {
         context.getSystemService<NotificationManager>()?.createNotificationChannel(channel)
     }
 
-    fun buildRingingNotification(context: Context, alarm: Alarm?, alarmId: Long): Notification {
+    fun buildRingingNotification(
+        context: Context,
+        alarm: Alarm?,
+        alarmId: Long,
+        snoozeMinutes: Int = 0,
+    ): Notification {
         val fullScreenIntent = PendingIntent.getActivity(
             context,
             AlarmContract.fullScreenRequestCode(alarmId),
@@ -57,10 +72,32 @@ object AlarmNotifications {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
-            // No dismiss action: the whole point of IRIS is that the challenge is
-            // the only way out, and a notification button would bypass it.
             .setContentIntent(fullScreenIntent)
+            // When the phone is unlocked and in use Android shows this as a
+            // heads-up banner instead of taking over the screen, so the two
+            // decisions have to be reachable from the banner itself.
             .setFullScreenIntent(fullScreenIntent, true)
+            .apply {
+                if (snoozeMinutes > 0) {
+                    addAction(
+                        NotificationCompat.Action.Builder(
+                            R.drawable.ic_iris_notification,
+                            context.getString(R.string.notification_snooze, snoozeMinutes),
+                            snoozePendingIntent(context, alarmId),
+                        ).build(),
+                    )
+                }
+                // "Stop" opens the challenge rather than silencing anything: a
+                // notification button that killed the alarm outright would be
+                // the plain off switch IRIS deliberately does not have.
+                addAction(
+                    NotificationCompat.Action.Builder(
+                        R.drawable.ic_iris_notification,
+                        context.getString(R.string.notification_stop),
+                        fullScreenIntent,
+                    ).build(),
+                )
+            }
             .build()
     }
 }
