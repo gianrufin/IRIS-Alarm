@@ -108,8 +108,11 @@ fun IrisNavHost(modifier: Modifier = Modifier) {
             // rather than sliding like the rest of the stack.
             enterTransition = { scaleIn(tween(TRANSITION_MILLIS), 0.92f) + fadeIn() },
             popExitTransition = { scaleOut(tween(TRANSITION_MILLIS), 0.92f) + fadeOut() },
-        ) {
-            val editorEntry = remember(navController) {
+        ) { entry ->
+            // Keyed on this destination's own entry: remembering against the
+            // controller alone would hand back a stale editor after the back
+            // stack changes underneath it.
+            val editorEntry = remember(entry) {
                 navController.getBackStackEntry(Routes.EDITOR_WITH_ARG)
             }
             val editorViewModel: AlarmEditorViewModel = hiltViewModel(editorEntry)

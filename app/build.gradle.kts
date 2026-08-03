@@ -10,12 +10,29 @@ android {
     namespace = "com.iris.alarm"
     compileSdk = 35
 
+    signingConfigs {
+        // A stable identity for side-loaded builds. Android refuses to install an
+        // update signed by a different key than the installed app, so the in-app
+        // updater only works if every release is signed with this one — which is
+        // why it lives in the repository rather than on one machine.
+        //
+        // It is NOT a secret and must NOT be used for Play Store releases. Swap in
+        // a key from CI secrets before publishing anywhere real.
+        create("sideload") {
+            storeFile = rootProject.file("keystore/iris-sideload.jks")
+            storePassword = "irisalarm"
+            keyAlias = "iris"
+            keyPassword = "irisalarm"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.iris.alarm"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        // Bumped on every release; the in-app updater compares these.
+        versionCode = 2
+        versionName = "0.2.0"
 
         // Hilt needs its own Application under test; CustomTestRunner swaps it in.
         testInstrumentationRunner = "com.iris.alarm.HiltTestRunner"
@@ -23,6 +40,7 @@ android {
 
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("sideload")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -43,6 +61,8 @@ android {
 
     buildFeatures {
         compose = true
+        // The updater compares the running version against the latest release.
+        buildConfig = true
     }
 
     // ML Kit's native libraries are ~60 MB of the APK across four ABIs. Splitting

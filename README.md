@@ -4,11 +4,21 @@ An Android alarm clock with no snooze button. Every alarm is dismissed by doing
 something in the real world — smiling into the front camera, hunting down a
 physical object, or walking somewhere bright — evaluated entirely on-device.
 
+## Install
+
+Grab the newest APK from [Releases](../../releases) — take `arm64-v8a` for any
+modern phone, or `universal` if unsure (it is roughly three times the size).
+After the first install the app updates itself: **Settings → Updates**.
+
+Releases are signed with the repository's side-load key (`keystore/`), which is
+what lets the in-app updater install over an existing IRIS. That key is public
+by design and is **not** suitable for Play Store distribution — swap it for a CI
+secret before publishing anywhere real.
+
 ## Status
 
-Feature-complete for the core loop: set an alarm, it rings over the lock screen,
-and the only way to silence it is to satisfy a camera or sensor challenge.
-Unit tests cover the scheduling maths and the persistence round-trip
+Feature-complete: set an alarm, it splashes over the lock screen, and the only
+way to silence it is to satisfy a camera or sensor challenge. 43 unit tests
 (`./gradlew :app:testDebugUnitTest`).
 
 ## Stack
@@ -86,9 +96,33 @@ All in `domain/model/VisionChallenge.kt` (`ChallengeThresholds`):
 
 | Challenge | Passes when |
 | --- | --- |
-| Smile (front camera) | `smilingProbability > 0.8` and both eyes open `> 0.7`, held 3s |
-| Object hunt (rear camera) | target label confidence `> 0.8` across 5 consecutive frames |
-| Lumen | `> 500 lux` sustained for 1.5s |
+| Mirror (front camera) | `smilingProbability > 0.8` and both eyes open `> 0.7`, held 3s |
+| Target (rear camera) | scene similarity to the captured anchor `> 0.82` across 4 consecutive frames |
+| Light | `> 500 lux` sustained for 1.5s |
+
+### Target Iris is a place, not an object
+
+When setting the alarm you photograph a spot — the kettle, a bookshelf, the
+bathroom mirror — and the alarm only stops when the camera is looking at that
+spot again. Unlike hunting for a named object, it cannot be satisfied from bed.
+
+`SceneSignature` pairs a **dHash** with a **luminance histogram**. The dHash
+compares each pixel to its right-hand neighbour, so it encodes structure rather
+than brightness — the room is far darker at 6am than when the anchor was
+captured, and a raw pixel comparison would fail on that alone. The histogram
+catches the opposite error, where a different wall happens to have a similar
+edge layout. Structure carries 72% of the weight.
+
+It reads the YUV luminance plane directly, so there is no colour conversion or
+Bitmap allocation on the analysis thread. The stored thumbnail is greyscale and
+96×128 — drawn from the same plane the matcher uses, so what you see is what is
+compared, and no colour photograph of your home is written to disk.
+
+**Its limits are real.** Matching is on framing and structure, so a very dark
+room, a spot that has physically changed, or a wildly different angle will not
+match. Capture something with shape to it, not a blank wall. An anchor alarm
+cannot be saved without a captured spot, and an anchor whose spot has gone falls
+back to a runnable challenge rather than ringing until the timeout.
 
 ## The wake check
 
@@ -102,17 +136,53 @@ uses a single fixed request code, so a second check replaces the first rather
 than stacking. Deleting an alarm cancels a check belonging to it, so a check can
 never outlive the alarm behind it.
 
+## The ringing screen
+
+An alarm opens with an animated iris over the time and label, held for about
+1.7s, before the challenge takes over — a camera viewfinder appearing with no
+preamble reads as the phone malfunctioning at 6am, not as an alarm.
+
+Then the camera fills the screen behind a scrim and **the instruction sits dead
+centre in the largest type on screen**: "OPEN YOUR EYES WIDER", "GO TO YOUR
+TARGET SPOT", "FIND BRIGHTER LIGHT". `instructionFor()` is the single place that
+text is decided, so every state of every challenge — including the ones where
+nothing is being detected yet — puts a usable instruction there. The progress
+ring traces the edge of the display itself.
+
 ## Settings
 
 `SettingsScreen`, backed by DataStore:
 
 | Setting | Default | Why |
 | --- | --- | --- |
+| Clock | 24 hour | 12/24-hour across every surface, including the lock screen |
 | Default challenge | Mirror Iris | Pre-selects the challenge for new alarms |
 | Auto-silence | 10 min | How long an unsolved alarm rings before giving up |
 | Volume ramp | 15 s | Fade in from near-silence, so the alarm wakes rather than startles |
 | Minimum volume | 60% | Floor the alarm stream is raised to while ringing, then restored |
 | Wake check | Off | Ring again this long after a solved challenge |
+
+### Permissions
+
+A dedicated screen covers everything the OS can withhold that would stop the
+alarm appearing over the lock screen — notifications, full-screen intents, exact
+alarms, battery optimisation, camera — each with why it matters and a hand-off
+to the right system page, re-checked on return. It also names the OEM autostart
+limits (Xiaomi, Samsung, Huawei, Oppo) that Android cannot report, because
+pretending those do not exist is how an alarm silently fails on those phones.
+
+### Updates
+
+IRIS is side-loaded, so **Settings → Updates** checks the project's GitHub
+releases, downloads the APK matching the device's ABI, and installs it through
+`PackageInstaller` without leaving the app. Android only accepts an update
+signed with the same key as the installed build, which is why the signing key is
+in the repository — an APK from anywhere else is rejected by the platform, and
+that rejection is surfaced verbatim rather than swallowed.
+
+The download is written to a `.part` file and moved into place only once the
+whole body has arrived, so a dropped connection cannot leave a truncated APK for
+the installer to choke on.
 
 Auto-silence and volume ramp can be overridden per alarm — a weekday alarm can
 ring for half an hour without every alarm doing so. `IrisSettings.effectiveFor`
@@ -123,11 +193,17 @@ so an override can be taken back off.
 
 ## Database
 
-Schema v2. The v1 → v2 migration adds the two nullable override columns, leaving
-existing alarms following the global settings exactly as before. There is
-deliberately no `fallbackToDestructiveMigration`: wiping someone's alarms on an
-upgrade means they do not wake up. `IrisDatabaseMigrationTest` asserts rows
-survive the upgrade.
+Schema v3.
+
+- **v1 → v2** adds the nullable per-alarm override columns.
+- **v2 → v3** replaces the object-hunt target with the captured place anchor.
+  SQLite cannot drop a column here, so the table is rebuilt and rows copied
+  across; an alarm that was an object hunt becomes an anchor with no spot
+  captured yet.
+
+There is deliberately no `fallbackToDestructiveMigration`: wiping someone's
+alarms on an upgrade means they do not wake up. `IrisDatabaseMigrationTest`
+asserts rows survive each step and the whole v1 → v3 path.
 
 ## Tests
 
@@ -152,11 +228,24 @@ model vocabulary.
 
 ```bash
 echo "sdk.dir=/path/to/android-sdk" > local.properties
-./gradlew :app:assembleDebug
+./gradlew :app:assembleDebug     # ~100 MB, all ABIs, debug-signed
+./gradlew :app:assembleRelease   # split per ABI, R8, side-load signed
 ```
 
-The debug APK is large (~100 MB) because the ML Kit models are bundled for
-offline use; the release build shrinks with R8 (`isMinifyEnabled`).
+The debug APK is large because the ML Kit models are bundled for offline use —
+an alarm cannot depend on the network at 6am. The release build shrinks with R8
+and splits by ABI, taking arm64 from 81 MB to 27 MB.
+
+### Cutting a release
+
+```bash
+# bump versionCode and versionName in app/build.gradle.kts first
+git tag v0.3.0 && git push origin v0.3.0
+```
+
+`.github/workflows/release.yml` runs the tests, builds the signed split APKs and
+publishes them as a GitHub Release — which is also what the in-app updater
+reads. The manual trigger builds artifacts without publishing.
 
 ## Screens
 

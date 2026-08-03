@@ -17,7 +17,17 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- An alarm clock is one of the few app types Play policy allows to ask for
+         this: battery optimisation can delay an alarm while the phone is idle
+         overnight, which is exactly when it has to fire. -->
+    <uses-permission
+        android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
+        tools:ignore="BatteryLife" />
+
+    <!-- In-app updates: fetch the release from GitHub and hand it to the
+         system installer, which still asks the user to confirm. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Vision challenges. The light sensor needs no permission. -->
     <uses-permission android:name="android.permission.CAMERA" />

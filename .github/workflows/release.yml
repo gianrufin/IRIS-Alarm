@@ -1,0 +1,79 @@
+name: Release APK
+
+# Builds signed APKs and publishes them as a GitHub Release, which is also what
+# the in-app updater reads. Tag a commit to cut a release:
+#
+#   git tag v0.2.0 && git push origin v0.2.0
+#
+# The manual trigger builds and uploads artifacts without publishing a release,
+# for checking a branch on a device.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run unit tests
+        run: ./gradlew :app:testDebugUnitTest
+
+      - name: Build release APKs
+        run: ./gradlew :app:assembleRelease
+
+      - name: Name the APKs
+        id: rename
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          [ "$GITHUB_REF_TYPE" = "tag" ] || version="$(git rev-parse --short HEAD)"
+          mkdir -p dist
+          for abi in arm64-v8a armeabi-v7a x86_64 universal; do
+            src="app/build/outputs/apk/release/app-${abi}-release.apk"
+            if [ -f "$src" ]; then
+              cp "$src" "dist/iris-alarm-${version}-${abi}.apk"
+            fi
+          done
+          ls -la dist
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: iris-apks
+          path: dist/*.apk
+          retention-days: 30
+
+      - name: Publish release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.apk
+          generate_release_notes: true
+          body: |
+            Side-loadable APKs for IRIS Alarm ${{ steps.rename.outputs.version }}.
+
+            Install `arm64-v8a` on any modern phone. `universal` works on
+            anything but is roughly three times the size.
+
+            These are signed with the repository's side-load key, so the in-app
+            updater can install them over an existing IRIS install. They are not
+            Play Store builds.

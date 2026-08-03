@@ -48,6 +48,9 @@ fun SettingsScreen(
         onBack = onBack,
         onOpenPermissions = onOpenPermissions,
         onUse24Hour = viewModel::setUse24Hour,
+        // Passed as a slot so the preview can render the screen without a
+        // Hilt-injected updater behind it.
+        updates = { UpdateSection() },
         modifier = modifier,
     )
 }
@@ -63,6 +66,7 @@ private fun SettingsContent(
     onBack: () -> Unit,
     onOpenPermissions: () -> Unit,
     onUse24Hour: (Boolean) -> Unit,
+    updates: @Composable () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -163,6 +167,14 @@ private fun SettingsContent(
                 label = { if (it == 0) "OFF" else "$it MIN" },
                 onSelect = onWakeCheck,
             )
+        }
+
+        Setting(
+            title = "UPDATES",
+            detail = "IRIS is side-loaded, so it updates itself from the project's " +
+                "GitHub releases rather than through the Play Store.",
+        ) {
+            updates()
         }
 
         Setting(
@@ -276,6 +288,7 @@ private fun SettingsPreview() {
             onBack = {},
             onOpenPermissions = {},
             onUse24Hour = {},
+            updates = {},
         )
     }
 }
