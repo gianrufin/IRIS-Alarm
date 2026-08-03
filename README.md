@@ -1,8 +1,12 @@
 # IRIS Alarm
 
 An Android alarm clock with no snooze button. Every alarm is dismissed by doing
-something in the real world — smiling into the front camera, hunting down a
-physical object, or walking somewhere bright — evaluated entirely on-device.
+something in the real world — smiling into the front camera, walking back to a
+place you photographed, hunting down an object it names at random, walking
+somewhere bright, or answering arithmetic — evaluated entirely on-device.
+
+**[irisalarm landing page →](https://gianrufin.github.io/SNAP-WAKE/app/)** — what
+it does, every challenge, and the download.
 
 ## Install
 
@@ -348,6 +352,20 @@ the wake check arms and cancels independently of the alarm, the Room round-trip
 against real SQLite, the v1 → v2 migration, that the challenge Activity renders
 and survives a back press, and that every `HuntTarget` exists in the shipped
 model vocabulary.
+
+## Landing page
+
+`site/` is a two-file static site published to GitHub Pages by
+`.github/workflows/pages.yml`: the page itself at `/app/`, and a root redirect so
+a trimmed URL is not a 404. The workflow passes `enablement: true` to
+`actions/configure-pages`, so the first run turns Pages on rather than needing
+repository settings visited by hand.
+
+Download links and file sizes are filled in from the releases API at load time,
+so cutting a release does not mean redeploying the page. Every link works
+without the script — it falls back to the latest-release page and approximate
+sizes — because a rate-limited API should leave a working page rather than a
+broken one.
 
 ## Build
 
