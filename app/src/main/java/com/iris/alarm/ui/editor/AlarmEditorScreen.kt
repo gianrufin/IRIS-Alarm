@@ -43,6 +43,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -59,6 +60,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iris.alarm.domain.model.IrisSettings
 import com.iris.alarm.domain.model.VisionChallenge
+import com.iris.alarm.ui.challenge.ChallengeScreen
 import com.iris.alarm.ui.components.RadialTimePicker
 import com.iris.alarm.ui.components.formatClock
 import com.iris.alarm.ui.components.rememberAnchorThumbnail
@@ -88,6 +90,20 @@ fun AlarmEditorScreen(
     // existing alarm through a wizard it has already been through.
     var step by rememberSaveable { mutableIntStateOf(0) }
     val lastStep = STEPS.lastIndex
+
+    // Rehearsing the challenge before trusting it at 6am. Kept at this level so
+    // it covers the whole editor rather than scrolling with the step content.
+    var practising by rememberSaveable { mutableStateOf(false) }
+    if (practising) {
+        ChallengeScreen(
+            alarm = draft,
+            use24Hour = use24Hour,
+            onChallengeSolved = { practising = false },
+            practice = true,
+            modifier = modifier,
+        )
+        return
+    }
 
     Column(
         modifier = modifier
@@ -141,6 +157,7 @@ fun AlarmEditorScreen(
                             anchorThumbnail = draft.anchorThumbnailPath,
                             onSelect = viewModel::setChallenge,
                             onCaptureAnchor = onCaptureAnchor,
+                            onPractise = { practising = true },
                         )
 
                         else -> DetailsStep(viewModel = viewModel)
@@ -259,6 +276,7 @@ private fun ChallengeStep(
     anchorThumbnail: String?,
     onSelect: (VisionChallenge) -> Unit,
     onCaptureAnchor: () -> Unit,
+    onPractise: () -> Unit,
 ) {
     ChallengePicker(selected = selected, onSelect = onSelect)
 
@@ -267,6 +285,42 @@ private fun ChallengeStep(
         Section(title = "YOUR TARGET SPOT") {
             AnchorPicker(thumbnailPath = anchorThumbnail, onCapture = onCaptureAnchor)
         }
+    }
+
+    PractiseRow(challenge = selected, onPractise = onPractise)
+}
+
+/**
+ * Runs the chosen challenge now, against the real detector.
+ *
+ * Whether ML Kit can find your face in your bedroom light, or recognise the
+ * objects in your kitchen, or whether the spot you captured is actually
+ * matchable — none of that is knowable from a description, and finding out at
+ * 6am with the alarm going is the worst possible time. Thirty seconds here is
+ * worth more than any amount of copy explaining what the challenge does.
+ */
+@Composable
+private fun PractiseRow(challenge: VisionChallenge, onPractise: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(28.dp))
+            .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(28.dp))
+            .clickable(onClick = onPractise)
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = "TRY IT NOW",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        Text(
+            text = "Run ${challenge.displayName} once, right here. Better to find out " +
+                "now than at 6am.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

@@ -60,6 +60,7 @@ import com.google.accompanist.permissions.rememberPermissionState
 import com.iris.alarm.alarm.AlarmForegroundService
 import com.iris.alarm.domain.model.Alarm
 import com.iris.alarm.domain.model.ChallengeThresholds
+import com.iris.alarm.domain.model.HuntTarget
 import com.iris.alarm.domain.model.VisionChallenge
 import com.iris.alarm.ui.components.ClockText
 import com.iris.alarm.ui.components.challengeRing
@@ -69,6 +70,7 @@ import com.iris.alarm.ui.theme.IrisTheme
 import com.iris.alarm.ui.theme.IrisType
 import com.iris.alarm.vision.AnchorAnalyzer
 import com.iris.alarm.vision.ChallengeProgress
+import com.iris.alarm.vision.HuntAnalyzer
 import com.iris.alarm.vision.SceneSignature
 import com.iris.alarm.vision.SmileAnalyzer
 import com.iris.alarm.vision.VisionAnalyzer
@@ -91,16 +93,23 @@ fun ChallengeScreen(
     use24Hour: Boolean,
     onChallengeSolved: () -> Unit,
     modifier: Modifier = Modifier,
+    /**
+     * Runs the challenge as a rehearsal from the editor: no splash, a visible way
+     * out, and solving it proves the thing works rather than stopping an alarm.
+     * Everything else is the same code, which is the entire point — a practice
+     * mode that exercised a different path would prove nothing.
+     */
+    practice: Boolean = false,
     viewModel: ChallengeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val isWakeCheck by AlarmForegroundService.ringingIsWakeCheck.collectAsStateWithLifecycle()
-    var splashDone by remember { mutableStateOf(false) }
+    var splashDone by remember { mutableStateOf(practice) }
 
     val challenge = state.challenge
     val progress = state.progress
     val cameraPermission = rememberPermissionState(android.Manifest.permission.CAMERA)
-    val needsCamera = challenge != VisionChallenge.LUMEN
+    val needsCamera = challenge.needsCamera
 
     LaunchedEffect(alarm?.id, alarm?.challenge) {
         viewModel.start(alarm)
@@ -108,6 +117,9 @@ fun ChallengeScreen(
 
     LaunchedEffect(progress.solved) {
         if (!progress.solved) return@LaunchedEffect
+        // A rehearsal stays on screen once it succeeds — the whole reason to run
+        // one is to see that it did, and closing it after 900ms hides the answer.
+        if (practice) return@LaunchedEffect
         // Let the confirmation land before the screen disappears.
         delay(SUCCESS_DWELL_MILLIS)
         onChallengeSolved()
@@ -154,6 +166,7 @@ fun ChallengeScreen(
             cameraPermission.status.isGranted -> DetectorSurface(
                 challenge = challenge,
                 alarm = alarm,
+                huntTarget = state.huntTarget,
                 onProgress = viewModel::report,
             )
 
@@ -238,7 +251,9 @@ fun ChallengeScreen(
                 alarm = alarm,
                 challenge = challenge,
                 use24Hour = use24Hour,
-                notice = state.notice ?: "WAKE CHECK".takeIf { isWakeCheck },
+                notice = state.notice
+                    ?: "PRACTICE RUN".takeIf { practice }
+                    ?: "WAKE CHECK".takeIf { isWakeCheck },
             )
 
             // The instruction, centred and largest on screen.
@@ -251,10 +266,28 @@ fun ChallengeScreen(
                     AnchorReminder(alarm)
                 }
 
+                state.huntTarget?.takeIf { challenge == VisionChallenge.HUNT }?.let { target ->
+                    HuntBrief(
+                        target = target,
+                        swapsLeft = state.huntSwapsLeft,
+                        onSwap = viewModel::swapHuntTarget,
+                    )
+                }
+
                 Instruction(
                     text = instructionFor(state, challenge, cameraPermission.status.isGranted),
                     solved = progress.solved,
                 )
+
+                state.math?.takeIf { challenge == VisionChallenge.MATH }?.let { math ->
+                    MathPad(
+                        math = math,
+                        solved = progress.solved,
+                        onDigit = viewModel::onMathDigit,
+                        onBackspace = viewModel::onMathBackspace,
+                        onSubmit = viewModel::onMathSubmit,
+                    )
+                }
 
                 Metric(progress = progress, challenge = challenge)
             }
@@ -271,7 +304,22 @@ fun ChallengeScreen(
                     )
                 }
 
-                if (state.escapeAllowed) {
+                if (practice) {
+                    Text(
+                        text = if (progress.solved) "IT WORKS · CLOSE" else "CLOSE",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (progress.solved) {
+                            MaterialTheme.colorScheme.secondary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        modifier = Modifier
+                            .clickable(onClick = onChallengeSolved)
+                            .padding(12.dp),
+                    )
+                }
+
+                if (state.escapeAllowed && !practice) {
                     // Nothing on this device can run a challenge. Ringing forever
                     // with no way out is a worse failure than a skipped challenge.
                     EscapeButton(onDismiss = onChallengeSolved)
@@ -393,7 +441,9 @@ private fun Metric(progress: ChallengeProgress, challenge: VisionChallenge) {
 private fun targetLabel(challenge: VisionChallenge): String = when (challenge) {
     VisionChallenge.SMILE -> "SMILE CONFIDENCE"
     VisionChallenge.ANCHOR -> "MATCH · TARGET ${(ChallengeThresholds.ANCHOR_SIMILARITY * 100).toInt()}%"
+    VisionChallenge.HUNT -> "RECOGNITION · TARGET ${(ChallengeThresholds.HUNT_CONFIDENCE * 100).toInt()}%"
     VisionChallenge.LUMEN -> "TARGET ${ChallengeThresholds.LUMEN_TARGET.toInt()} LUX"
+    VisionChallenge.MATH -> "CORRECT ANSWERS"
 }
 
 /** The captured spot, so a half-asleep user knows where they are being sent. */
@@ -463,17 +513,19 @@ private fun Header(
 private fun DetectorSurface(
     challenge: VisionChallenge,
     alarm: Alarm?,
+    huntTarget: HuntTarget?,
     onProgress: (ChallengeProgress) -> Unit,
 ) {
     val reference = remember(alarm?.anchorSignature) {
         SceneSignature.deserialise(alarm?.anchorSignature)
     }
 
-    val analyzer: VisionAnalyzer? = remember(challenge, reference) {
+    val analyzer: VisionAnalyzer? = remember(challenge, reference, huntTarget) {
         when (challenge) {
             VisionChallenge.SMILE -> SmileAnalyzer(onProgress)
             VisionChallenge.ANCHOR -> reference?.let { AnchorAnalyzer(it, onProgress) }
-            VisionChallenge.LUMEN -> null
+            VisionChallenge.HUNT -> huntTarget?.let { HuntAnalyzer(it, onProgress) }
+            VisionChallenge.LUMEN, VisionChallenge.MATH -> null
         }
     }
 
@@ -552,14 +604,24 @@ private fun instructionFor(
     cameraGranted: Boolean,
 ): String {
     if (state.escapeAllowed) return "THIS DEVICE CANNOT RUN A CHALLENGE"
-    if (challenge != VisionChallenge.LUMEN && !cameraGranted) return "ALLOW THE CAMERA TO CONTINUE"
+    if (challenge.needsCamera && !cameraGranted) return "ALLOW THE CAMERA TO CONTINUE"
     if (state.anchorMissing) return "NO TARGET SAVED FOR THIS ALARM"
+
+    // The math pad puts the sum right under this line, so the instruction is a
+    // standing one rather than a running commentary that fights it for attention.
+    if (challenge == VisionChallenge.MATH) {
+        return if (state.progress.solved) "YOU'RE AWAKE" else "SOLVE IT"
+    }
 
     return state.progress.hint.ifBlank {
         when (challenge) {
             VisionChallenge.SMILE -> "SMILE AT THE CAMERA"
             VisionChallenge.ANCHOR -> "GO TO YOUR TARGET SPOT"
+            VisionChallenge.HUNT -> state.huntTarget
+                ?.let { "FIND ${it.display.uppercase()}" }
+                ?: "FIND THE OBJECT"
             VisionChallenge.LUMEN -> "FIND BRIGHT LIGHT"
+            VisionChallenge.MATH -> "SOLVE IT"
         }
     }
 }

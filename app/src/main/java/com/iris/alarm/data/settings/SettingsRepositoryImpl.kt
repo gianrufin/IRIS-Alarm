@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.iris.alarm.domain.model.IrisSettings
+import com.iris.alarm.domain.model.MathDifficulty
 import com.iris.alarm.domain.model.ThemeMode
 import com.iris.alarm.domain.model.VisionChallenge
 import com.iris.alarm.domain.repository.SettingsRepository
@@ -39,6 +40,11 @@ class SettingsRepositoryImpl @Inject constructor(
                 ?.let { name -> runCatching { ThemeMode.valueOf(name) }.getOrNull() }
                 ?: ThemeMode.SYSTEM,
             snoozeMinutes = prefs[Keys.SNOOZE_MINUTES] ?: IrisSettings.DEFAULT_SNOOZE_MINUTES,
+            mathDifficulty = prefs[Keys.MATH_DIFFICULTY]
+                ?.let { name -> runCatching { MathDifficulty.valueOf(name) }.getOrNull() }
+                ?: MathDifficulty.MEDIUM,
+            mathProblemCount = prefs[Keys.MATH_PROBLEM_COUNT]
+                ?: IrisSettings.DEFAULT_MATH_PROBLEMS,
             onboardingComplete = prefs[Keys.ONBOARDING_COMPLETE] ?: false,
         )
     }
@@ -77,6 +83,14 @@ class SettingsRepositoryImpl @Inject constructor(
         context.dataStore.edit { it[Keys.SNOOZE_MINUTES] = minutes }
     }
 
+    override suspend fun setMathDifficulty(difficulty: MathDifficulty) {
+        context.dataStore.edit { it[Keys.MATH_DIFFICULTY] = difficulty.name }
+    }
+
+    override suspend fun setMathProblemCount(count: Int) {
+        context.dataStore.edit { it[Keys.MATH_PROBLEM_COUNT] = count }
+    }
+
     override suspend fun setOnboardingComplete(complete: Boolean) {
         context.dataStore.edit { it[Keys.ONBOARDING_COMPLETE] = complete }
     }
@@ -90,6 +104,8 @@ class SettingsRepositoryImpl @Inject constructor(
         val USE_24_HOUR = booleanPreferencesKey("use_24_hour")
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val SNOOZE_MINUTES = intPreferencesKey("snooze_minutes")
+        val MATH_DIFFICULTY = stringPreferencesKey("math_difficulty")
+        val MATH_PROBLEM_COUNT = intPreferencesKey("math_problem_count")
         val ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
     }
 }

@@ -53,6 +53,16 @@ data class IrisSettings(
     /** Minutes a swipe-to-snooze buys before the alarm returns. */
     val snoozeMinutes: Int = DEFAULT_SNOOZE_MINUTES,
 
+    /** How hard the arithmetic challenge is. */
+    val mathDifficulty: MathDifficulty = MathDifficulty.MEDIUM,
+
+    /**
+     * Correct answers required before a math alarm stops. One is too easy to get
+     * right by luck on a keypad; more than a handful is a punishment rather than
+     * a wake-up.
+     */
+    val mathProblemCount: Int = DEFAULT_MATH_PROBLEMS,
+
     /** False until the first-run setup has been walked through. */
     val onboardingComplete: Boolean = false,
 ) {
@@ -74,11 +84,13 @@ data class IrisSettings(
         const val DEFAULT_MINIMUM_VOLUME_PERCENT = 60
         const val DEFAULT_WAKE_CHECK_MINUTES = 0
         const val DEFAULT_SNOOZE_MINUTES = 9
+        const val DEFAULT_MATH_PROBLEMS = 3
 
         val AUTO_SILENCE_CHOICES = listOf(1, 5, 10, 15, 30)
         val RAMP_CHOICES = listOf(0, 5, 15, 30)
         val MINIMUM_VOLUME_CHOICES = listOf(0, 40, 60, 80, 100)
         val WAKE_CHECK_CHOICES = listOf(0, 3, 5, 10, 15)
         val SNOOZE_CHOICES = listOf(0, 5, 9, 15, 20)
+        val MATH_PROBLEM_CHOICES = listOf(1, 2, 3, 5)
     }
 }

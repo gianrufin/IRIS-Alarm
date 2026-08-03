@@ -1,7 +1,7 @@
 package com.iris.alarm.domain.model
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 class ChallengeResolutionTest {
@@ -20,10 +20,13 @@ class ChallengeResolutionTest {
     }
 
     @Test
-    fun `no light sensor falls back to a camera challenge`() {
+    fun `no light sensor falls back to the hunt`() {
+        // Lumen is the "get out of bed" challenge, and the hunt is the closest
+        // substitute that also makes the user walk somewhere. The anchor only
+        // sends them to one place they already know.
         val caps = Caps(hasLightSensor = false)
 
-        assertEquals(VisionChallenge.ANCHOR, resolveChallenge(VisionChallenge.LUMEN, caps))
+        assertEquals(VisionChallenge.HUNT, resolveChallenge(VisionChallenge.LUMEN, caps))
     }
 
     @Test
@@ -42,12 +45,51 @@ class ChallengeResolutionTest {
     }
 
     @Test
-    fun `a device with nothing resolves to null so the caller offers an escape`() {
+    fun `a device with no sensors at all still gets arithmetic`() {
+        // Before MATH existed this returned null and the UI had to offer a plain
+        // dismiss. Arithmetic needs no hardware, so there is now always a real
+        // challenge to run and the escape hatch should never be reached.
         val caps = Caps(hasFrontCamera = false, hasBackCamera = false, hasLightSensor = false)
 
         VisionChallenge.entries.forEach { requested ->
-            assertNull(resolveChallenge(requested, caps))
+            assertEquals(VisionChallenge.MATH, resolveChallenge(requested, caps))
         }
+    }
+
+    @Test
+    fun `math is never substituted while any sensor challenge can run`() {
+        // It is the last resort, not a convenient default — an alarm that
+        // quietly downgrades to a keypad is not the app anyone installed.
+        listOf(
+            Caps(),
+            Caps(hasFrontCamera = false),
+            Caps(hasBackCamera = false),
+            Caps(hasLightSensor = false),
+            Caps(hasFrontCamera = false, hasBackCamera = false),
+        ).forEach { caps ->
+            VisionChallenge.entries
+                .filter { it != VisionChallenge.MATH }
+                .forEach { requested ->
+                    assertNotEquals(
+                        "\$requested on \$caps",
+                        VisionChallenge.MATH,
+                        resolveChallenge(requested, caps),
+                    )
+                }
+        }
+    }
+
+    @Test
+    fun `a hunt without a rear camera falls back rather than failing`() {
+        assertEquals(
+            VisionChallenge.SMILE,
+            resolveChallenge(VisionChallenge.HUNT, Caps(hasBackCamera = false, hasLightSensor = false)),
+        )
+    }
+
+    @Test
+    fun `asking for math always gets math`() {
+        assertEquals(VisionChallenge.MATH, resolveChallenge(VisionChallenge.MATH, Caps()))
     }
 
     @Test
@@ -56,7 +98,7 @@ class ChallengeResolutionTest {
     }
 
     @Test
-    fun `camera refusal with no light sensor has no fallback`() {
-        assertNull(resolveWithoutCamera(Caps(hasLightSensor = false)))
+    fun `camera refusal with no light sensor falls back to arithmetic`() {
+        assertEquals(VisionChallenge.MATH, resolveWithoutCamera(Caps(hasLightSensor = false)))
     }
 }

@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iris.alarm.domain.model.IrisSettings
+import com.iris.alarm.domain.model.MathDifficulty
 import com.iris.alarm.domain.model.ThemeMode
 import com.iris.alarm.domain.model.VisionChallenge
 import com.iris.alarm.ui.theme.IrisTheme
@@ -51,6 +52,8 @@ fun SettingsScreen(
         onUse24Hour = viewModel::setUse24Hour,
         onThemeMode = viewModel::setThemeMode,
         onSnooze = viewModel::setSnoozeMinutes,
+        onMathDifficulty = viewModel::setMathDifficulty,
+        onMathProblemCount = viewModel::setMathProblemCount,
         // Passed as a slot so the preview can render the screen without a
         // Hilt-injected updater behind it.
         updates = { UpdateSection() },
@@ -71,6 +74,8 @@ private fun SettingsContent(
     onUse24Hour: (Boolean) -> Unit,
     onThemeMode: (ThemeMode) -> Unit,
     onSnooze: (Int) -> Unit,
+    onMathDifficulty: (MathDifficulty) -> Unit,
+    onMathProblemCount: (Int) -> Unit,
     updates: @Composable () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -132,6 +137,31 @@ private fun SettingsContent(
                 selected = settings.defaultChallenge,
                 label = { it.displayName.uppercase() },
                 onSelect = onDefaultChallenge,
+            )
+        }
+
+        Setting(
+            title = "MATH DIFFICULTY",
+            detail = "How hard the sums are for a Math Iris alarm. " +
+                "Medium looks like ${MathDifficulty.MEDIUM.example}.",
+        ) {
+            ChoiceRow(
+                options = MathDifficulty.entries,
+                selected = settings.mathDifficulty,
+                label = { it.displayName.uppercase() },
+                onSelect = onMathDifficulty,
+            )
+        }
+
+        Setting(
+            title = "MATH PROBLEMS",
+            detail = "Correct answers needed before a Math Iris alarm stops",
+        ) {
+            ChoiceRow(
+                options = IrisSettings.MATH_PROBLEM_CHOICES,
+                selected = settings.mathProblemCount,
+                label = { if (it == 1) "1" else "$it" },
+                onSelect = onMathProblemCount,
             )
         }
 
@@ -320,6 +350,8 @@ private fun SettingsPreview() {
             onUse24Hour = {},
             onThemeMode = {},
             onSnooze = {},
+            onMathDifficulty = {},
+            onMathProblemCount = {},
             updates = {},
         )
     }

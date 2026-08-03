@@ -3,6 +3,7 @@ package com.iris.alarm.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.iris.alarm.domain.model.IrisSettings
+import com.iris.alarm.domain.model.MathDifficulty
 import com.iris.alarm.domain.model.ThemeMode
 import com.iris.alarm.domain.model.VisionChallenge
 import com.iris.alarm.domain.repository.SettingsRepository
@@ -42,6 +43,14 @@ class SettingsViewModel @Inject constructor(
 
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch { repository.setThemeMode(mode) }
+    }
+
+    fun setMathDifficulty(difficulty: MathDifficulty) {
+        viewModelScope.launch { repository.setMathDifficulty(difficulty) }
+    }
+
+    fun setMathProblemCount(count: Int) {
+        viewModelScope.launch { repository.setMathProblemCount(count) }
     }
 
     fun setSnoozeMinutes(minutes: Int) {

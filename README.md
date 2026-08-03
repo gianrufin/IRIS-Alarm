@@ -108,7 +108,42 @@ All in `domain/model/VisionChallenge.kt` (`ChallengeThresholds`):
 | --- | --- |
 | Mirror (front camera) | `smilingProbability > 0.8` and both eyes open `> 0.7`, held 3s |
 | Target (rear camera) | scene similarity to the captured anchor `> 0.82` across 4 consecutive frames |
+| Hunt (rear camera) | ML Kit labels the named object at `> 0.55` confidence across 3 consecutive frames |
+| Math (no hardware) | the configured number of arithmetic problems answered correctly |
 | Light | `> 500 lux` sustained for 1.5s |
+
+### Hunt Iris can only ask for things the model knows
+
+The random object is drawn from a fixed pool in `HuntTarget`, and every entry was
+checked against the label file inside the ML Kit model asset. That vocabulary is
+447 labels and it is not the one anyone would guess: there is no *toothbrush*, no
+*mug*, no *book*, no *towel*, no *door*. A target outside it produces a challenge
+that can never be satisfied, which on a ringing alarm means sitting there until
+the auto-silence timeout — so `HuntTargetVocabularyTest` re-checks every target
+against a copy of that file, and asserts the file's own label count first so a
+truncated copy cannot make the check vacuous.
+
+The object is drawn **at ring time, not when the alarm is set**, so it cannot be
+staged on the bedside table the night before. It is also the one challenge that
+can be defeated by simply not owning the thing, which is what the swap answers —
+twice, and then you are stuck with what you were given, because an unlimited
+re-roll is an off switch with extra steps.
+
+### Math Iris is the one that always works
+
+Arithmetic needs no camera, no sensor and no permission, which makes it the last
+entry in every fallback order in `resolveChallenge`. Before it existed, a device
+with no camera and no light sensor resolved to null and the UI had to offer a
+plain dismiss; now there is always a real challenge to run. It is never
+substituted while any sensor challenge can run — an alarm that quietly downgrades
+to a keypad is not the app anyone installed — and a test asserts exactly that.
+
+The keypad is drawn rather than borrowed from the system IME: a soft keyboard
+over the lock screen is at the mercy of whichever keyboard app is installed, can
+be dismissed, and hides its number row behind a mode switch. A wrong answer
+re-rolls the question and shakes the pad, but never takes back a problem already
+solved — resetting a run for one fat-fingered keypad press is the kind of
+punishment that gets an alarm clock uninstalled.
 
 ### Target Iris is a place, not an object
 
@@ -230,6 +265,8 @@ ring traces the edge of the display itself.
 | Clock | 24 hour | 12/24-hour across every surface, including the lock screen |
 | Snooze | 9 min | Swipe-left length; off removes that half of the swipe |
 | Default challenge | Mirror Iris | Pre-selects the challenge for new alarms |
+| Math difficulty | Medium | Easy `47 + 26`, Medium `38 × 7`, Hard `24 × 17` |
+| Math problems | 3 | Correct answers needed before a Math Iris alarm stops |
 | Auto-silence | 10 min | How long an unsolved alarm rings before giving up |
 | Volume ramp | 15 s | Fade in from near-silence, so the alarm wakes rather than startles |
 | Minimum volume | 60% | Floor the alarm stream is raised to while ringing, then restored |
@@ -345,9 +382,9 @@ reads. The manual trigger builds artifacts without publishing.
   select all / cancel / delete. Back leaves the selection rather than the screen,
   and the selection is dropped for any alarm that stops existing while it is
   held.
-- **Editor** (`ui/editor`) — snapping hour/minute wheels at display type size,
-  day chips, the three challenges as full-width options, hunt-target chips,
-  label, system ringtone picker and vibration.
+- **Editor** (`ui/editor`) — a three-step wizard: the radial time picker and day
+  chips, then the five challenges as animated full-width cards with **TRY IT
+  NOW**, then label, system ringtone picker and vibration.
 - **Challenge** (`ui/challenge`) — the ringing surface. A progress ring traces
   the rounded outline of the camera window or lux gauge as the detector closes
   in; the readout under it shows the live number and one line of guidance.
@@ -438,6 +475,22 @@ Each challenge card animates when selected, and the motion is specific to what i
 does: the smile breathes, the target sweeps like a scanner, the light glows. Each
 also says what it costs you at 6am, which is the real difference between them —
 a smile can be done in bed, an anchor cannot.
+
+## Trying a challenge before you trust it
+
+The challenge step has a **TRY IT NOW** card that runs the chosen challenge
+immediately, against the real detector, in the real screen — `ChallengeScreen`
+with `practice = true`, which skips the splash, adds a visible way out, and does
+not stop any alarm. A practice mode that exercised a different code path would
+prove nothing, so it exercises the same one.
+
+This exists because the interesting questions about every challenge are ones no
+amount of description can answer. Can ML Kit find your face in your bedroom's
+light? Does it recognise the objects in *your* kitchen? Is the spot you captured
+actually matchable from where you will be standing? Thirty seconds here beats
+finding out at 6am with the alarm going. A rehearsal that succeeds stays on
+screen rather than closing after 900ms — the whole point of running one is to see
+that it worked.
 
 ## Setting the time
 

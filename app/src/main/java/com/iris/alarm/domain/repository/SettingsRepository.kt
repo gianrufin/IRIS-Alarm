@@ -1,6 +1,7 @@
 package com.iris.alarm.domain.repository
 
 import com.iris.alarm.domain.model.IrisSettings
+import com.iris.alarm.domain.model.MathDifficulty
 import com.iris.alarm.domain.model.ThemeMode
 import com.iris.alarm.domain.model.VisionChallenge
 import kotlinx.coroutines.flow.Flow
@@ -26,6 +27,10 @@ interface SettingsRepository {
     suspend fun setThemeMode(mode: ThemeMode)
 
     suspend fun setSnoozeMinutes(minutes: Int)
+
+    suspend fun setMathDifficulty(difficulty: MathDifficulty)
+
+    suspend fun setMathProblemCount(count: Int)
 
     suspend fun setOnboardingComplete(complete: Boolean)
 }

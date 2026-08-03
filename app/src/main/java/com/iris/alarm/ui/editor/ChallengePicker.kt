@@ -215,6 +215,41 @@ private fun AnimatedChallengeIcon(challenge: VisionChallenge, active: Boolean) {
                     )
                 }
 
+                // Sweeps a wider arc than the anchor and drifts: searching a
+                // room rather than lining up on one spot.
+                VisionChallenge.HUNT -> {
+                    drawCircle(
+                        color = accent.copy(alpha = 0.25f),
+                        radius = radius,
+                        style = Stroke(width = 1.5.dp.toPx()),
+                    )
+                    drawArc(
+                        color = accent,
+                        startAngle = -sweep * 1.4f,
+                        sweepAngle = 150f,
+                        useCenter = false,
+                        topLeft = Offset(centre.x - radius * 0.78f, centre.y - radius * 0.78f),
+                        size = androidx.compose.ui.geometry.Size(
+                            radius * 1.56f,
+                            radius * 1.56f,
+                        ),
+                        style = Stroke(width = 2.5.dp.toPx()),
+                    )
+                }
+
+                // Ticks between two states, like a cursor waiting for an answer.
+                VisionChallenge.MATH -> {
+                    drawCircle(
+                        color = accent,
+                        radius = radius,
+                        style = Stroke(width = 2.dp.toPx()),
+                    )
+                    drawCircle(
+                        color = accent.copy(alpha = if (pulse > 1f) 0.85f else 0.2f),
+                        radius = radius * 0.24f,
+                    )
+                }
+
                 // Glows, like light arriving.
                 VisionChallenge.LUMEN -> {
                     drawCircle(color = accent.copy(alpha = glow * 0.3f), radius = radius)
@@ -241,12 +276,16 @@ private fun AnimatedChallengeIcon(challenge: VisionChallenge, active: Boolean) {
 internal fun VisionChallenge.description(): String = when (this) {
     VisionChallenge.SMILE -> "Hold a smile at the front camera for 3 seconds"
     VisionChallenge.ANCHOR -> "Go back to a spot you capture now"
+    VisionChallenge.HUNT -> "Find a household object the alarm names at random"
     VisionChallenge.LUMEN -> "Walk somewhere bright until the sensor clears 500 lux"
+    VisionChallenge.MATH -> "Answer arithmetic on a keypad until you're awake"
 }
 
 /** What it actually costs you at 6am, which is the real difference between them. */
 private fun VisionChallenge.effort(): String = when (this) {
     VisionChallenge.SMILE -> "EASIEST · CAN BE DONE IN BED"
-    VisionChallenge.ANCHOR -> "HARDEST · GETS YOU ACROSS THE ROOM"
+    VisionChallenge.ANCHOR -> "HARD · GETS YOU ACROSS THE ROOM"
+    VisionChallenge.HUNT -> "HARDEST · UNPREDICTABLE, SENDS YOU HUNTING"
     VisionChallenge.LUMEN -> "MEDIUM · NEEDS REAL LIGHT"
+    VisionChallenge.MATH -> "MEDIUM · NO CAMERA, WORKS ANYWHERE"
 }
