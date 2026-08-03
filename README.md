@@ -196,7 +196,14 @@ pretending those do not exist is how an alarm silently fails on those phones.
 
 IRIS is side-loaded, so **Settings → Updates** checks the project's GitHub
 releases, downloads the APK matching the device's ABI, and installs it through
-`PackageInstaller` without leaving the app. Android only accepts an update
+`PackageInstaller` without leaving the app.
+
+It reads the *list* of releases and picks the newest itself, rather than asking
+for `releases/latest` — that endpoint silently omits pre-releases, which is how
+an earlier build managed to report "up to date" with a newer release sitting on
+the releases page. Ordering is decided here rather than trusting the order the
+API returns, drafts are ignored, and a release carrying no APK this device can
+run is passed over however new it is. Android only accepts an update
 signed with the same key as the installed build, which is why the signing key is
 in the repository — an APK from anywhere else is rejected by the platform, and
 that rejection is surfaced verbatim rather than swallowed.
