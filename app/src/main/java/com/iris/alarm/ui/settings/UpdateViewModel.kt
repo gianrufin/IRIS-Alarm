@@ -1,6 +1,9 @@
 package com.iris.alarm.ui.settings
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.iris.alarm.BuildConfig
@@ -66,9 +69,9 @@ class UpdateViewModel @Inject constructor(
 
     fun downloadAndInstall(update: AppUpdate) {
         if (!installer.canInstallPackages()) {
-            _state.value = UpdateState.Failed(
-                "Allow IRIS to install apps in Android settings, then try again",
-            )
+            // Not a failure: the user has simply never been asked. The UI turns
+            // this into a button onto the right settings page.
+            _state.value = UpdateState.NeedsInstallPermission(update)
             return
         }
 
@@ -103,6 +106,25 @@ class UpdateViewModel @Inject constructor(
 
     fun dismissError() {
         _state.value = UpdateState.Idle
+    }
+
+    /** The "install unknown apps" page for IRIS specifically, not the whole list. */
+    fun installPermissionIntent(): Intent =
+        Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
+            .setData(Uri.fromParts("package", context.packageName, null))
+
+    /**
+     * Called when the user comes back from that page. Granting is asynchronous
+     * from the app's point of view — there is no result to read — so the only
+     * honest thing is to re-ask the package manager and either resume or say
+     * plainly that the toggle is still off.
+     */
+    fun onReturnedFromInstallSettings(update: AppUpdate) {
+        if (installer.canInstallPackages()) {
+            downloadAndInstall(update)
+        } else {
+            _state.value = UpdateState.NeedsInstallPermission(update)
+        }
     }
 
     /** Cache, not files: a half-finished download is never worth keeping. */

@@ -18,6 +18,11 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- A full-screen intent only takes over the screen while the phone is
+         locked; when it is already in use Android downgrades it to a banner.
+         This is what lets the alarm start its own activity anyway, so the same
+         screen appears whether the phone was locked or in the user's hand. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- An alarm clock is one of the few app types Play policy allows to ask for
          this: battery optimisation can delay an alarm while the phone is idle
          overnight, which is exactly when it has to fire. -->

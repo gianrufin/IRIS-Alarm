@@ -1,5 +1,7 @@
 package com.iris.alarm.ui.settings
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -20,11 +22,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.iris.alarm.domain.model.AppUpdate
 import com.iris.alarm.domain.model.UpdateState
 
 /**
@@ -41,6 +47,16 @@ fun UpdateSection(
     viewModel: UpdateViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+
+    // The install-unknown-apps toggle reports nothing back, so the pending
+    // update is remembered across the trip and re-checked on return.
+    var awaitingPermissionFor by remember { mutableStateOf<AppUpdate?>(null) }
+    val installSettingsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) {
+        awaitingPermissionFor?.let(viewModel::onReturnedFromInstallSettings)
+        awaitingPermissionFor = null
+    }
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -86,6 +102,19 @@ fun UpdateSection(
                         }
                     },
                     onClick = { viewModel.downloadAndInstall(current.update) },
+                    accent = MaterialTheme.colorScheme.primary,
+                )
+
+                is UpdateState.NeedsInstallPermission -> ActionCard(
+                    title = "ALLOW IRIS TO INSTALL UPDATES",
+                    detail = "Android blocks side-loaded apps from installing " +
+                        "anything until you allow it. Tap to open the setting — " +
+                        "${current.update.versionName} installs as soon as you " +
+                        "come back.",
+                    onClick = {
+                        awaitingPermissionFor = current.update
+                        installSettingsLauncher.launch(viewModel.installPermissionIntent())
+                    },
                     accent = MaterialTheme.colorScheme.primary,
                 )
 

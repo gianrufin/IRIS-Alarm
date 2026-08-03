@@ -37,6 +37,13 @@ enum class AlarmPermission(val title: String, val why: String, val required: Boo
             "instead of appearing as a banner you have to find.",
         required = true,
     ),
+    OVERLAY(
+        title = "Display over other apps",
+        why = "Lets the alarm take over the screen while you are already using " +
+            "the phone. Without this an alarm that fires while unlocked only " +
+            "shows a banner you have to notice.",
+        required = true,
+    ),
     EXACT_ALARMS(
         title = "Exact alarms",
         why = "Without this Android may fire the alarm late — sometimes by many " +
@@ -53,6 +60,13 @@ enum class AlarmPermission(val title: String, val why: String, val required: Boo
         title = "Camera",
         why = "Needed for the smile and target challenges. The light challenge " +
             "works without it.",
+        required = false,
+    ),
+    INSTALL_UPDATES(
+        title = "Install unknown apps",
+        why = "IRIS is side-loaded, so its own updater has to hand the new build " +
+            "to the system installer. Without this, \"check for updates\" can " +
+            "find a release but never install it.",
         required = false,
     ),
 }
@@ -98,6 +112,10 @@ class AlarmPermissionChecker @Inject constructor(
             context,
             android.Manifest.permission.CAMERA,
         ) == PackageManager.PERMISSION_GRANTED
+
+        AlarmPermission.OVERLAY -> Settings.canDrawOverlays(context)
+
+        AlarmPermission.INSTALL_UPDATES -> context.packageManager.canRequestPackageInstalls()
     }
 
     /**
@@ -132,6 +150,14 @@ class AlarmPermissionChecker @Inject constructor(
         )
 
         AlarmPermission.CAMERA -> null
+
+        // Both of these are "special app access" pages rather than permissions,
+        // so they are only reachable by intent — there is no dialog to request.
+        AlarmPermission.OVERLAY ->
+            Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, packageUri())
+
+        AlarmPermission.INSTALL_UPDATES ->
+            Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, packageUri())
     }
 
     /** Fallback for OEMs that bury autostart controls in their own app settings. */

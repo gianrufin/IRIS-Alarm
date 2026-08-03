@@ -24,6 +24,7 @@ import com.iris.alarm.domain.model.IrisSettings
 import com.iris.alarm.domain.repository.AlarmRepository
 import com.iris.alarm.domain.repository.SettingsRepository
 import com.iris.alarm.domain.repository.WakeCheckRepository
+import com.iris.alarm.ui.challenge.AlarmChallengeActivity
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -115,6 +116,7 @@ class AlarmForegroundService : Service() {
         _ringingAlarmId.value = alarmId
 
         acquireWakeLock()
+        launchAlarmScreen(alarmId)
 
         scope.launch {
             val alarm = if (alarmId == AlarmContract.NO_ALARM_ID) {
@@ -160,6 +162,28 @@ class AlarmForegroundService : Service() {
                 0
             },
         )
+    }
+
+    /**
+     * Puts the swipe screen in front of the user, locked or not.
+     *
+     * The notification's full-screen intent only takes over the screen while the
+     * phone is locked; when it is already in use Android downgrades it to a
+     * banner, which is easy to swipe past half-asleep. Starting the activity
+     * outright is what makes the two cases behave the same.
+     *
+     * Android normally forbids a background activity start. The exemption this
+     * relies on is SYSTEM_ALERT_WINDOW ("display over other apps"), which is why
+     * that is now one of the required permissions. Without it the start is
+     * refused and the notification remains the fallback, so this must never be
+     * allowed to take the alarm down with it.
+     */
+    private fun launchAlarmScreen(alarmId: Long) {
+        runCatching {
+            startActivity(AlarmChallengeActivity.intent(this, alarmId))
+        }.onFailure {
+            Log.w(TAG, "Could not open the alarm screen; falling back to the notification", it)
+        }
     }
 
     /**

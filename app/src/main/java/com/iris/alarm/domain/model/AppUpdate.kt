@@ -16,6 +16,14 @@ sealed interface UpdateState {
     data class Available(val update: AppUpdate) : UpdateState
     data class Downloading(val update: AppUpdate, val fraction: Float) : UpdateState
 
+    /**
+     * A release is waiting but Android will not let IRIS hand an APK to the
+     * installer until "install unknown apps" is granted. Distinct from [Failed]
+     * because the fix is one settings page away and the flow can resume itself
+     * on the way back — telling the user to go and find it is not a fix.
+     */
+    data class NeedsInstallPermission(val update: AppUpdate) : UpdateState
+
     /** The APK is downloaded; the system installer dialog is next. */
     data class ReadyToInstall(val update: AppUpdate) : UpdateState
     data object Installing : UpdateState

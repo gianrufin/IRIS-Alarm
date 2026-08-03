@@ -72,6 +72,17 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch { deleteAlarm(alarm) }
     }
 
+    /**
+     * Deletes a multi-selection in one pass. Sequential rather than concurrent:
+     * each delete also cancels a scheduled alarm, and doing that from several
+     * coroutines at once would race the scheduler for no gain on a list this
+     * size.
+     */
+    fun delete(alarms: Collection<Alarm>) {
+        if (alarms.isEmpty()) return
+        viewModelScope.launch { alarms.forEach { deleteAlarm(it) } }
+    }
+
     /** "I'm up" — cancels the pending follow-up check. */
     fun confirmAwake() {
         scheduler.cancelWakeCheck()

@@ -9,7 +9,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.addCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.core.content.getSystemService
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
@@ -113,17 +112,20 @@ class AlarmChallengeActivity : ComponentActivity() {
         finish()
     }
 
+    /**
+     * Shows over the keyguard rather than dismissing it. Asking to dismiss puts
+     * the PIN prompt in front of the alarm, so the first thing a sleeping person
+     * has to do is unlock the phone — the challenge is the point, not the lock.
+     */
     private fun showOverLockScreen() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
-            getSystemService<android.app.KeyguardManager>()?.requestDismissKeyguard(this, null)
         } else {
             @Suppress("DEPRECATION")
             window.addFlags(
                 WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
-                    WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD,
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON,
             )
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)

@@ -41,12 +41,12 @@ class ApkInstaller @Inject constructor(
     private val _results = MutableSharedFlow<InstallResult>(extraBufferCapacity = 4)
     val results: SharedFlow<InstallResult> = _results.asSharedFlow()
 
-    fun canInstallPackages(): Boolean =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.packageManager.canRequestPackageInstalls()
-        } else {
-            true
-        }
+    /**
+     * False until the user grants "install unknown apps" for IRIS. This is the
+     * usual reason an in-app update stops dead, so it is checked before anything
+     * is downloaded rather than discovered at commit time.
+     */
+    fun canInstallPackages(): Boolean = context.packageManager.canRequestPackageInstalls()
 
     fun install(apk: File): Result<Unit> = runCatching {
         require(apk.exists() && apk.length() > 0) { "The downloaded file is missing or empty" }
