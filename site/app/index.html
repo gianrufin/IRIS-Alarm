@@ -1,0 +1,786 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IRIS Alarm — the alarm clock you can't dismiss from bed</title>
+<meta name="description" content="A native Android alarm clock that replaces the snooze button with camera and sensor challenges. Smile at the camera, walk to a spot you photographed, hunt down an object, find real light, or solve arithmetic. Free, open source, side-loaded.">
+<meta property="og:title" content="IRIS Alarm">
+<meta property="og:description" content="An Android alarm clock with no off switch — only a challenge you have to physically complete.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#000;
+    --surface:#0c0c0d;
+    --surface-2:#141416;
+    --line:#26262a;
+    --fg:#f5f5f4;
+    --muted:#8b8b90;
+    --amber:#FFB703;
+    --green:#00FF66;
+    --radius:32px;
+    --max:1080px;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--fg);
+    font-family:"Space Grotesk",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    line-height:1.6;
+    overflow-x:hidden;
+  }
+  a{color:inherit}
+  h1,h2,h3{line-height:1.1;margin:0;letter-spacing:-0.02em}
+  p{margin:0}
+  ul{margin:0;padding-left:1.1em}
+  li{margin:.35em 0}
+  code{
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:.85em;
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:.1em .4em;
+  }
+
+  .wrap{max-width:var(--max);margin:0 auto;padding:0 24px}
+  .label{
+    font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--muted);font-weight:500;
+  }
+  .label.amber{color:var(--amber)}
+  .label.green{color:var(--green)}
+
+  section{padding:88px 0;border-top:1px solid var(--line)}
+  section:first-of-type{border-top:0}
+  .section-head{max-width:44rem;margin-bottom:40px}
+  .section-head h2{font-size:clamp(1.7rem,4.4vw,2.6rem);margin:10px 0 14px}
+  .section-head p{color:var(--muted);font-size:1.02rem}
+
+  /* ---------- hero ---------- */
+  .hero{position:relative;padding:96px 0 88px;overflow:hidden}
+  .hero-glow{
+    position:absolute;inset:-40% -20% auto -20%;height:820px;pointer-events:none;
+    background:radial-gradient(closest-side,rgba(255,183,3,.16),rgba(255,183,3,0) 70%);
+  }
+  .hero .wrap{position:relative}
+  .mark{width:64px;height:64px;margin-bottom:26px}
+  .mark circle{fill:none;stroke:var(--amber)}
+  .hero h1{font-size:clamp(2.6rem,8vw,4.6rem);font-weight:700;margin:.2em 0 .3em}
+  .hero h1 em{font-style:normal;color:var(--amber)}
+  .lede{font-size:clamp(1.05rem,2.4vw,1.3rem);color:var(--muted);max-width:38rem}
+  .lede strong{color:var(--fg);font-weight:500}
+
+  .cta-row{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-top:38px}
+  .btn{
+    display:inline-flex;align-items:center;gap:10px;
+    padding:15px 26px;border-radius:999px;text-decoration:none;
+    font-size:.8rem;letter-spacing:.13em;text-transform:uppercase;font-weight:500;
+    border:1px solid var(--line);transition:transform .15s ease,background .15s ease;
+  }
+  .btn:hover{transform:translateY(-2px)}
+  .btn-primary{background:var(--amber);color:#000;border-color:var(--amber)}
+  .btn-ghost{color:var(--fg)}
+  .btn-ghost:hover{background:var(--surface-2)}
+  .cta-note{font-size:.8rem;color:var(--muted);letter-spacing:.04em}
+
+  .stat-row{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:14px;margin-top:56px;
+  }
+  .stat{border:1px solid var(--line);border-radius:24px;padding:20px 22px;background:var(--surface)}
+  .stat b{display:block;font-size:1.5rem;font-weight:700;letter-spacing:-.02em}
+  .stat span{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+
+  /* ---------- generic cards ---------- */
+  .grid{display:grid;gap:16px}
+  .grid-2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+  .grid-3{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .card{
+    border:1px solid var(--line);border-radius:var(--radius);
+    padding:26px;background:var(--surface);
+  }
+  .card h3{font-size:1.1rem;margin-bottom:8px}
+  .card p{color:var(--muted);font-size:.95rem}
+
+  /* ---------- challenges ---------- */
+  .challenge{
+    display:flex;gap:22px;align-items:flex-start;
+    border:1px solid var(--line);border-radius:var(--radius);
+    padding:26px;background:var(--surface);
+  }
+  .challenge .dial{flex:0 0 auto;width:60px;height:60px}
+  .challenge h3{font-size:1.15rem;margin-bottom:6px}
+  .challenge .how{color:var(--muted);font-size:.95rem;margin-bottom:12px}
+  .challenge .effort{
+    font-size:.7rem;letter-spacing:.13em;text-transform:uppercase;color:var(--amber);
+  }
+  .challenge .passes{
+    font-size:.8rem;color:var(--muted);margin-top:12px;padding-top:12px;
+    border-top:1px solid var(--line);
+  }
+  .challenge .passes b{color:var(--fg);font-weight:500}
+
+  .dial circle,.dial path,.dial rect{fill:none;stroke:var(--amber);stroke-width:2}
+  .dial .faint{stroke:var(--amber);opacity:.28;stroke-width:1.5}
+  .dial .fillc{fill:var(--amber);stroke:none}
+  @keyframes breathe{0%,100%{transform:scale(.9)}50%{transform:scale(1.06)}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes spin-rev{to{transform:rotate(-360deg)}}
+  @keyframes glow{0%,100%{opacity:.18}50%{opacity:.6}}
+  @keyframes blink{0%,45%{opacity:1}50%,100%{opacity:.15}}
+  .anim-breathe{animation:breathe 2.6s ease-in-out infinite;transform-origin:center}
+  .anim-sweep{animation:spin 2.6s linear infinite;transform-origin:center}
+  .anim-sweep-wide{animation:spin-rev 3.4s linear infinite;transform-origin:center}
+  .anim-glow{animation:glow 2.4s ease-in-out infinite;transform-origin:center}
+  .anim-blink{animation:blink 1.4s steps(1,end) infinite;transform-origin:center}
+  @media (prefers-reduced-motion:reduce){
+    .anim-breathe,.anim-sweep,.anim-sweep-wide,.anim-glow,.anim-blink{animation:none}
+    .btn:hover{transform:none}
+  }
+
+  /* ---------- swipe strip ---------- */
+  .swipe{
+    display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;
+  }
+  .swipe div{
+    border-radius:var(--radius);padding:24px;border:1px solid var(--line);
+  }
+  .swipe .left{
+    background:linear-gradient(270deg,rgba(255,183,3,.28),rgba(255,183,3,.02));
+    border-color:rgba(255,183,3,.5);
+  }
+  .swipe .right{
+    background:linear-gradient(90deg,rgba(0,255,102,.03),rgba(0,255,102,.26));
+    border-color:rgba(0,255,102,.5);
+  }
+  .swipe b{display:block;font-size:1.05rem;margin-bottom:4px}
+  .swipe span{color:var(--muted);font-size:.9rem}
+
+  /* ---------- flow ---------- */
+  .flow{display:grid;gap:10px}
+  .flow-step{
+    display:flex;gap:16px;align-items:baseline;
+    border:1px solid var(--line);border-radius:24px;padding:18px 22px;background:var(--surface);
+  }
+  .flow-step em{
+    font-style:normal;color:var(--amber);font-size:.72rem;letter-spacing:.14em;
+    flex:0 0 auto;width:2.4em;
+  }
+  .flow-step b{font-weight:500}
+  .flow-step span{color:var(--muted);font-size:.92rem;display:block}
+
+  /* ---------- download ---------- */
+  .dl-table{width:100%;border-collapse:collapse;margin-top:8px;font-size:.92rem}
+  .dl-table th{
+    text-align:left;font-size:.7rem;letter-spacing:.13em;text-transform:uppercase;
+    color:var(--muted);font-weight:500;padding:10px 12px;border-bottom:1px solid var(--line);
+  }
+  .dl-table td{padding:14px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  .dl-table tr:last-child td{border-bottom:0}
+  .dl-table a{color:var(--amber);text-decoration:none;font-weight:500}
+  .dl-table a:hover{text-decoration:underline}
+  .dl-table .pick{color:var(--muted);font-size:.85rem;display:block;margin-top:2px}
+  .table-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);padding:6px 14px;background:var(--surface)}
+
+  .steps{counter-reset:s;display:grid;gap:12px;margin-top:24px}
+  .step{
+    position:relative;border:1px solid var(--line);border-radius:24px;
+    padding:20px 24px 20px 66px;background:var(--surface);
+  }
+  .step::before{
+    counter-increment:s;content:counter(s);
+    position:absolute;left:22px;top:20px;width:28px;height:28px;border-radius:50%;
+    border:1px solid var(--amber);color:var(--amber);
+    display:grid;place-items:center;font-size:.8rem;
+  }
+  .step b{display:block;font-weight:500;margin-bottom:2px}
+  .step span{color:var(--muted);font-size:.92rem}
+
+  .note{
+    border:1px solid var(--line);border-left:3px solid var(--amber);
+    border-radius:16px;padding:20px 24px;background:var(--surface);
+    color:var(--muted);font-size:.94rem;margin-top:20px;
+  }
+  .note b{color:var(--fg);font-weight:500}
+
+  footer{padding:56px 0 72px;border-top:1px solid var(--line);color:var(--muted);font-size:.86rem}
+  footer a{color:var(--amber)}
+  .foot-row{display:flex;flex-wrap:wrap;gap:10px 28px;align-items:center;justify-content:space-between}
+
+  @media (max-width:600px){
+    section{padding:64px 0}
+    .swipe{grid-template-columns:1fr}
+    .challenge{flex-direction:column;gap:16px}
+  }
+</style>
+</head>
+<body>
+
+<!-- ================= HERO ================= -->
+<header class="hero">
+  <div class="hero-glow"></div>
+  <div class="wrap">
+    <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+      <circle cx="32" cy="32" r="29" stroke-width="2"/>
+      <circle cx="32" cy="32" r="19" stroke-width="1.2" opacity=".45"/>
+      <circle cx="32" cy="32" r="5" fill="#FFB703" stroke="none"/>
+    </svg>
+
+    <div class="label amber">Android alarm clock · open source</div>
+    <h1>An alarm with<br>no <em>off switch</em>.</h1>
+    <p class="lede">
+      IRIS replaces the snooze button with something you have to physically do.
+      <strong>Smile at the camera. Walk back to a spot you photographed. Hunt down an
+      object it names at random. Find real daylight. Solve arithmetic.</strong>
+      The alarm keeps ringing until one of them is genuinely done.
+    </p>
+
+    <div class="cta-row">
+      <a class="btn btn-primary" id="cta-download" href="https://github.com/gianrufin/SNAP-WAKE/releases/latest">
+        Download APK
+      </a>
+      <a class="btn btn-ghost" href="#download">All builds &amp; install steps</a>
+      <a class="btn btn-ghost" href="https://github.com/gianrufin/SNAP-WAKE">Source on GitHub</a>
+    </div>
+    <p class="cta-note" id="cta-note" style="margin-top:16px">Side-loaded APK · Android 8.0+ · no Play Store listing</p>
+
+    <div class="stat-row">
+      <div class="stat"><b>5</b><span>Dismissal challenges</span></div>
+      <div class="stat"><b>100%</b><span>On-device — no network</span></div>
+      <div class="stat"><b>0</b><span>Accounts, ads, trackers</span></div>
+      <div class="stat"><b id="stat-version">—</b><span>Current version</span></div>
+    </div>
+  </div>
+</header>
+
+<!-- ================= WHY ================= -->
+<section id="why">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="label">The idea</div>
+      <h2>Snoozing is a decision you make while asleep.</h2>
+      <p>
+        Every alarm clock hands its most consequential button to the least
+        capable version of you. A tap is a reflex; it happens before you are
+        conscious enough to regret it. Maths puzzles were the usual answer, and
+        they fail the same way — you can do them lying down, eyes half shut,
+        and be asleep again ninety seconds later.
+      </p>
+    </div>
+    <div class="grid grid-3">
+      <div class="card">
+        <h3>Movement, not taps</h3>
+        <p>
+          Most IRIS challenges cannot be satisfied from under the duvet. They
+          need the camera pointed at something across the room, or a walk to
+          somewhere with real light.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Nothing leaves the phone</h3>
+        <p>
+          Face detection, scene matching and object recognition all run
+          on-device through ML Kit. No frame is uploaded, stored or kept. The
+          app needs the internet for exactly one thing: checking its own
+          updates.
+        </p>
+      </div>
+      <div class="card">
+        <h3>It still has to ring</h3>
+        <p>
+          Exact alarms through Doze, a foreground service that owns the audio,
+          a volume floor so a muted stream can't silence it, and re-arming
+          after reboot, time changes and app updates.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CHALLENGES ================= -->
+<section id="challenges">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="label amber">The challenges</div>
+      <h2>Five ways to prove you're actually up.</h2>
+      <p>
+        Pick one per alarm. Each has a different cost at 6am, which is the real
+        difference between them — and you can rehearse any of them in the editor
+        before you trust it.
+      </p>
+    </div>
+
+    <div class="grid" style="gap:16px">
+
+      <div class="challenge">
+        <svg class="dial" viewBox="0 0 60 60" aria-hidden="true">
+          <circle class="anim-breathe" cx="30" cy="30" r="26"/>
+          <circle class="fillc" cx="22" cy="25" r="2.4"/>
+          <circle class="fillc" cx="38" cy="25" r="2.4"/>
+          <path d="M20 36c4 5 16 5 20 0" stroke-linecap="round"/>
+        </svg>
+        <div>
+          <h3>Mirror Iris</h3>
+          <p class="how">
+            Hold a real smile at the front camera, eyes open, for three seconds.
+            In a dark bedroom the screen becomes the light source: brightness
+            goes to full and a white ring-light wash lights your face without
+            blowing out the preview.
+          </p>
+          <div class="effort">Easiest · can be done in bed</div>
+          <p class="passes"><b>Passes when</b> smile confidence &gt; 0.8 and both eyes open &gt; 0.7, held continuously for 3s.</p>
+        </div>
+      </div>
+
+      <div class="challenge">
+        <svg class="dial" viewBox="0 0 60 60" aria-hidden="true">
+          <circle class="faint" cx="30" cy="30" r="26"/>
+          <path class="anim-sweep" d="M30 4a26 26 0 0 1 26 26" stroke-linecap="round"/>
+          <circle cx="30" cy="30" r="11" stroke-width="1.6"/>
+          <circle class="fillc" cx="30" cy="30" r="3"/>
+        </svg>
+        <div>
+          <h3>Target Iris</h3>
+          <p class="how">
+            Photograph a spot when you set the alarm — the kitchen counter, the
+            bathroom mirror, a bookshelf across the room. The alarm only stops
+            once the camera is looking at that place again. A thumbnail of the
+            spot is shown while it rings, because half asleep you will not
+            remember which shelf you chose.
+          </p>
+          <div class="effort">Hard · gets you across the room</div>
+          <p class="passes"><b>Passes when</b> scene similarity to your captured anchor exceeds 82% across 4 consecutive frames. Matching uses a perceptual hash plus a luminance histogram, so it survives different light and imperfect framing.</p>
+        </div>
+      </div>
+
+      <div class="challenge">
+        <svg class="dial" viewBox="0 0 60 60" aria-hidden="true">
+          <circle class="faint" cx="30" cy="30" r="26"/>
+          <path class="anim-sweep-wide" d="M8 30a22 22 0 0 1 38-15" stroke-linecap="round"/>
+          <path d="M26 26l10 10M36 26l-10 10" stroke-linecap="round" stroke-width="1.6" opacity=".55"/>
+        </svg>
+        <div>
+          <h3>Hunt Iris</h3>
+          <p class="how">
+            The app names a household object <em>when the alarm goes off</em> —
+            a sink, a shoe, a cup, an open drawer — and you have to point the
+            camera at a real one. Choosing it at ring time is the whole point:
+            it cannot be staged on the bedside table the night before. Each
+            target comes with a hint about which room to try.
+          </p>
+          <div class="effort">Hardest · unpredictable, sends you hunting</div>
+          <p class="passes"><b>Passes when</b> the on-device labeller recognises the named object at &gt; 55% confidence across 3 consecutive frames. Don't own one? Two swaps are allowed — then you're stuck with what you were given.</p>
+        </div>
+      </div>
+
+      <div class="challenge">
+        <svg class="dial" viewBox="0 0 60 60" aria-hidden="true">
+          <circle class="fillc anim-glow" cx="30" cy="30" r="24"/>
+          <circle cx="30" cy="30" r="26"/>
+          <circle cx="30" cy="30" r="9" stroke-width="1.6"/>
+        </svg>
+        <div>
+          <h3>Light Iris</h3>
+          <p class="how">
+            Walk somewhere genuinely bright and hold it there. Uses the ambient
+            light sensor, not the camera — so it works with the camera permission
+            refused, and a phone screen shoved at the sensor won't do it.
+          </p>
+          <div class="effort">Medium · needs real light</div>
+          <p class="passes"><b>Passes when</b> the sensor holds above 500 lux for 1.5 seconds, so a torch flashed past doesn't count.</p>
+        </div>
+      </div>
+
+      <div class="challenge">
+        <svg class="dial" viewBox="0 0 60 60" aria-hidden="true">
+          <circle cx="30" cy="30" r="26"/>
+          <path d="M19 24h10M24 19v10M33 36h8M33 30h8" stroke-linecap="round" stroke-width="2"/>
+          <rect class="fillc anim-blink" x="27" y="38" width="6" height="2.5" rx="1"/>
+        </svg>
+        <div>
+          <h3>Math Iris</h3>
+          <p class="how">
+            Arithmetic on a big drawn keypad — not the system keyboard, which
+            over a lock screen is at the mercy of whichever keyboard app you
+            have installed. Difficulty and the number of problems are both
+            settings. A wrong answer rerolls the question and shakes the pad,
+            but never takes back one you already solved.
+          </p>
+          <div class="effort">Medium · no camera, works anywhere</div>
+          <p class="passes"><b>Passes when</b> you answer the configured number of problems correctly (3 by default). Needs no camera, no sensor and no permission, which makes it the fallback on any device that can't run the others.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ================= RINGING ================= -->
+<section id="ringing">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="label amber">When it goes off</div>
+      <h2>A card you push aside, then the challenge.</h2>
+      <p>
+        Deliberately a drag rather than a button — half asleep a button is easy
+        to hit by accident, a deliberate push across the screen is not. The whole
+        screen takes the colour of the decision as the card moves.
+      </p>
+    </div>
+
+    <div class="swipe">
+      <div class="left">
+        <b>← Snooze</b>
+        <span>Amber wash. Says exactly how long: <em>rings again in 9 min</em>.</span>
+      </div>
+      <div class="right">
+        <b>Stop →</b>
+        <span>Green wash. Goes on to the challenge — it is not an off switch.</span>
+      </div>
+    </div>
+
+    <div class="grid grid-2" style="margin-top:32px">
+      <div class="card">
+        <h3>Snooze behaves like a real alarm clock</h3>
+        <p>
+          A snooze arms a fresh exact alarm and posts a <em>Snoozed until 06:09</em>
+          notification with a cancel action. Snoozing again replaces the pending
+          one rather than stacking, and solving the challenge — or disabling or
+          deleting the alarm — cancels it. The challenge is still waiting at the
+          end of it.
+        </p>
+      </div>
+      <div class="card">
+        <h3>It takes over the screen, locked or not</h3>
+        <p>
+          A full-screen intent only wins while the phone is locked, so IRIS also
+          starts the alarm screen outright when you're already using the phone.
+          It shows <em>over</em> the lock screen rather than dismissing it — no PIN
+          prompt in front of your alarm.
+        </p>
+      </div>
+      <div class="card">
+        <h3>The wake check</h3>
+        <p>
+          Solving a challenge proves you were awake for ten seconds, not that you
+          stayed up. Optionally, IRIS re-arms the same challenge for a few
+          minutes later, and only an explicit <em>I'm up</em> cancels it.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Nothing rings without a way out</h3>
+        <p>
+          If a challenge genuinely can't run — no camera, permission refused —
+          IRIS falls back to one that can and says so, rather than ringing at
+          something impossible until the auto-silence timeout.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TRY IT ================= -->
+<section id="practice">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="label green">Before you trust it</div>
+      <h2>Rehearse any challenge in the editor.</h2>
+      <p>
+        Every interesting question about these challenges is one no description
+        can answer. Can the detector find your face in <em>your</em> bedroom's
+        light? Does it recognise the objects in <em>your</em> kitchen? Is the spot
+        you captured actually matchable from where you'll be standing?
+      </p>
+    </div>
+    <div class="note">
+      <b>TRY IT NOW</b> runs the chosen challenge immediately, against the real
+      detector, in the real ringing screen — the same code path, just without an
+      alarm attached. Thirty seconds in the editor beats finding out at 6am.
+    </div>
+  </div>
+</section>
+
+<!-- ================= REST OF APP ================= -->
+<section id="more">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="label">The rest of the clock</div>
+      <h2>It's a whole clock app, not a demo.</h2>
+    </div>
+    <div class="grid grid-3">
+      <div class="card">
+        <h3>Timer, stopwatch, focus</h3>
+        <p>
+          A floating dock with a countdown timer (custom <code>MM:SS</code> entry),
+          a stopwatch with laps, and a configurable pomodoro. All three keep
+          counting in an ongoing notification with pause and reset controls, and
+          run off a monotonic clock rather than accumulated ticks, so they don't
+          drift.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Assistant &amp; quick actions</h3>
+        <p>
+          Registers the standard clock intents, so <em>"Hey Google, set an alarm"</em>
+          and <em>"set a timer for ten minutes"</em> can be handed to IRIS. Long-press
+          the launcher icon for create alarm, start timer, stopwatch and focus.
+        </p>
+      </div>
+      <div class="card">
+        <h3>A time picker worth using</h3>
+        <p>
+          A clock-face dial: minutes on the outer ring, hours on the inner one,
+          both draggable and tappable, scrubbing a minute at a time so exact
+          times need no second control. New alarms open at the current time.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Built for the dark</h3>
+        <p>
+          Pitch-black-first design with amber and neon-green accents, Space
+          Grotesk throughout, and light / dark / system themes. The ringing
+          screen stays dark whatever the app theme — it's a face full of phone
+          in a dark bedroom.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Alarms that survive</h3>
+        <p>
+          Exact alarms via <code>setExactAndAllowWhileIdle</code>, re-armed after
+          reboot, clock changes, timezone changes and app updates. Volume fades
+          in from near-silence, and a muted alarm stream is raised to a floor
+          then put back.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Manage the list fast</h3>
+        <p>
+          Long-press any alarm to start a selection — rings appear beside every
+          row and the toggles step aside — then delete as many as you like at
+          once.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= DOWNLOAD ================= -->
+<section id="download">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="label amber">Download</div>
+      <h2>Get IRIS Alarm <span id="dl-version"></span></h2>
+      <p>
+        Requires Android 8.0 (Oreo) or newer. There is no Play Store listing —
+        these APKs are downloaded and installed directly.
+      </p>
+    </div>
+
+    <div class="table-scroll">
+      <table class="dl-table">
+        <thead>
+          <tr><th>Build</th><th>Who it's for</th><th>Size</th></tr>
+        </thead>
+        <tbody id="dl-rows">
+          <tr>
+            <td><a id="dl-arm64" href="https://github.com/gianrufin/SNAP-WAKE/releases/latest">arm64-v8a</a>
+              <span class="pick">Recommended</span></td>
+            <td>Every phone sold in roughly the last eight years. Pick this one if you're not sure.</td>
+            <td id="sz-arm64">~27 MB</td>
+          </tr>
+          <tr>
+            <td><a id="dl-arm32" href="https://github.com/gianrufin/SNAP-WAKE/releases/latest">armeabi-v7a</a></td>
+            <td>Older 32-bit devices.</td>
+            <td id="sz-arm32">~20 MB</td>
+          </tr>
+          <tr>
+            <td><a id="dl-x64" href="https://github.com/gianrufin/SNAP-WAKE/releases/latest">x86_64</a></td>
+            <td>Emulators and the handful of Intel-based devices.</td>
+            <td id="sz-x64">~29 MB</td>
+          </tr>
+          <tr>
+            <td><a id="dl-univ" href="https://github.com/gianrufin/SNAP-WAKE/releases/latest">universal</a></td>
+            <td>Contains every architecture. Much larger — only worth it if the others refuse to install.</td>
+            <td id="sz-univ">~81 MB</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin-top:48px;font-size:1.25rem">Installing</h3>
+    <div class="steps">
+      <div class="step">
+        <b>Download the arm64-v8a APK</b>
+        <span>Your browser will warn you about downloading a file of this type. That warning is about side-loading in general, not about this file.</span>
+      </div>
+      <div class="step">
+        <b>Allow your browser to install unknown apps</b>
+        <span>Android will offer this the first time you open the APK. It's a per-app permission and you can revoke it afterwards.</span>
+      </div>
+      <div class="step">
+        <b>Open IRIS and walk through the permission setup</b>
+        <span>Nothing here is optional theatre — each one is something the OS can withhold that would stop an alarm waking you.</span>
+      </div>
+      <div class="step">
+        <b>Set your first alarm, then hit TRY IT NOW</b>
+        <span>Rehearse the challenge once before you rely on it.</span>
+      </div>
+    </div>
+
+    <h3 style="margin-top:48px;font-size:1.25rem">Permissions it asks for, and why</h3>
+    <div class="grid grid-2" style="margin-top:20px">
+      <div class="card">
+        <h3>Notifications &amp; full-screen alerts</h3>
+        <p>The ringing alarm is delivered as a notification. Without these it cannot show anything at all.</p>
+      </div>
+      <div class="card">
+        <h3>Display over other apps</h3>
+        <p>Lets the alarm take over the screen while you're already using the phone, instead of a banner you have to notice.</p>
+      </div>
+      <div class="card">
+        <h3>Exact alarms</h3>
+        <p>Without it Android may fire the alarm late — sometimes by many minutes — to save battery.</p>
+      </div>
+      <div class="card">
+        <h3>Unrestricted battery</h3>
+        <p>Battery optimisation can delay or drop an alarm while the phone is idle overnight, which is exactly when it needs to fire.</p>
+      </div>
+      <div class="card">
+        <h3>Camera</h3>
+        <p>Only for the Mirror, Target and Hunt challenges. Frames are analysed in memory and never stored or sent anywhere. Light Iris and Math Iris work without it.</p>
+      </div>
+      <div class="card">
+        <h3>Install unknown apps</h3>
+        <p>Only so the in-app updater can hand a new build to the system installer. You can skip it and update by downloading APKs yourself.</p>
+      </div>
+    </div>
+
+    <div class="note">
+      <b>Updates.</b> Settings → Updates checks this project's GitHub releases,
+      downloads the build matching your device, and installs it without leaving
+      the app. Android only accepts an update signed with the same key as the
+      installed build.
+    </div>
+  </div>
+</section>
+
+<!-- ================= HONESTY ================= -->
+<section id="caveats">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="label">Worth knowing before you rely on it</div>
+      <h2>The unglamorous parts.</h2>
+    </div>
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>The signing key is public</h3>
+        <p>
+          Android refuses an update signed with a different key than the installed
+          app, so the in-app updater only works if every release is signed with
+          one key — and that key lives in the repository. It is deliberately not a
+          secret. It means anyone could build an APK that installs over this one,
+          so only install builds from this project's own releases page.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Manufacturer skins can still kill it</h3>
+        <p>
+          Xiaomi, Samsung, Huawei, Oppo and others add autostart and background
+          limits that Android cannot report. If the alarm doesn't appear over the
+          lock screen with everything granted, look for <em>Autostart</em> or
+          <em>Lock screen display</em> in the app's system settings.
+        </p>
+      </div>
+      <div class="card">
+        <h3>It's young</h3>
+        <p>
+          The logic is covered by unit tests and every build is compiled and
+          linted in CI, but this has been tested on a small number of real
+          phones. Keep a second alarm for anything that genuinely matters until
+          you've watched it fire a few times.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Recognition is imperfect by nature</h3>
+        <p>
+          The object labeller knows a fixed vocabulary, and every hunt target was
+          checked against it — but whether it finds <em>your</em> sink in <em>your</em>
+          morning light is a real question. That's precisely what the rehearsal
+          button is for.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot-row">
+    <div>
+      IRIS Alarm — free and open source.
+      <a href="https://github.com/gianrufin/SNAP-WAKE">github.com/gianrufin/SNAP-WAKE</a>
+    </div>
+    <div>
+      <a href="https://github.com/gianrufin/SNAP-WAKE/releases">All releases</a> ·
+      <a href="https://github.com/gianrufin/SNAP-WAKE/issues">Report a bug</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+// Fills in the live version, direct APK links and real file sizes from the
+// GitHub releases API. Everything above already works without this — the links
+// fall back to the "latest release" page and the sizes to approximations — so a
+// rate-limited or offline API leaves a working page rather than a broken one.
+(function () {
+  var API = 'https://api.github.com/repos/gianrufin/SNAP-WAKE/releases/latest';
+
+  function mb(bytes) { return Math.round(bytes / 1048576 * 10) / 10 + ' MB'; }
+
+  function wire(assets, suffix, linkId, sizeId) {
+    var asset = assets.filter(function (a) { return a.name.indexOf(suffix) !== -1; })[0];
+    if (!asset) return;
+    var link = document.getElementById(linkId);
+    var size = document.getElementById(sizeId);
+    if (link) link.href = asset.browser_download_url;
+    if (size) size.textContent = mb(asset.size);
+    return asset;
+  }
+
+  fetch(API, { headers: { Accept: 'application/vnd.github+json' } })
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function (release) {
+      var version = (release.tag_name || '').replace(/^v/, '');
+      var assets = release.assets || [];
+
+      if (version) {
+        document.getElementById('stat-version').textContent = version;
+        document.getElementById('dl-version').textContent = version;
+      }
+
+      var arm64 = wire(assets, 'arm64-v8a', 'dl-arm64', 'sz-arm64');
+      wire(assets, 'armeabi-v7a', 'dl-arm32', 'sz-arm32');
+      wire(assets, 'x86_64', 'dl-x64', 'sz-x64');
+      wire(assets, 'universal', 'dl-univ', 'sz-univ');
+
+      // The hero button downloads the recommended build directly rather than
+      // dropping someone on a releases page to choose from four files.
+      if (arm64) {
+        var cta = document.getElementById('cta-download');
+        cta.href = arm64.browser_download_url;
+        cta.textContent = 'Download ' + version + ' (arm64)';
+        document.getElementById('cta-note').textContent =
+          mb(arm64.size) + ' · Android 8.0+ · no Play Store listing';
+      }
+    })
+    .catch(function () { /* Static content stands on its own. */ });
+})();
+</script>
+
+</body>
+</html>

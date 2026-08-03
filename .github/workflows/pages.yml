@@ -1,0 +1,48 @@
+name: Landing page
+
+# Publishes site/ to GitHub Pages. The landing page lives at /app/; the Pages
+# root redirects to it so a trimmed URL is not a 404.
+#
+# `configure-pages` is given `enablement: true` so the first run turns Pages on
+# by itself rather than needing someone to visit repository settings first.
+
+on:
+  push:
+    branches:
+      - claude/iris-alarm-android-ebbpkc
+    paths:
+      - "site/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time. In-progress runs are left to finish rather than
+# cancelled, so a half-uploaded artifact is never what gets published.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
