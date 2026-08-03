@@ -78,6 +78,16 @@ Notes on the pieces that are easy to get wrong:
   or timezone change invalidates the computed instants. `BootReceiver` re-arms
   from Room on `BOOT_COMPLETED`, `TIME_SET`, `TIMEZONE_CHANGED` and
   `MY_PACKAGE_REPLACED`.
+- **Appearing at all.** A full-screen intent only takes over the screen while
+  the phone is locked; when it is already in use Android downgrades it to a
+  heads-up banner. `AlarmForegroundService` therefore starts
+  `AlarmChallengeActivity` outright as well, which needs `SYSTEM_ALERT_WINDOW`
+  ("display over other apps") to be allowed as a background activity start. That
+  is why it is one of the required permissions. When it is missing the start is
+  refused and the notification is the fallback, so the alarm still rings.
+- **The keyguard is shown over, not dismissed.** Asking to dismiss it puts the
+  PIN prompt in front of the alarm; `setShowWhenLocked` puts the alarm in front
+  of the lock instead.
 - **The notification has no dismiss action** — deliberately. The challenge is the
   only exit, other than the 10-minute auto-silence timeout.
 - **Audio.** `USAGE_ALARM` attributes, looping `MediaPlayer`, transient audio
@@ -143,6 +153,12 @@ Android grants none of them without the user visiting a settings page. It can be
 skipped — refusing to let someone into an app they just installed is worse — but
 it says plainly what breaks. The same rows live in Settings → Permissions.
 
+Two of the rows are "special app access" pages rather than permissions, and
+neither can be requested with a dialog: **display over other apps**, which is
+what lets the alarm take over an unlocked screen, and **install unknown apps**,
+without which the in-app updater can find a release but never install it. Both
+link straight to their own settings page for IRIS.
+
 ## The ringing screen
 
 A ringing alarm shows the time on a card you push aside: **left snoozes, right
@@ -157,9 +173,13 @@ Snooze length is a setting; set it to off and the left half of the swipe goes
 away rather than silently doing nothing.
 
 
-Past the card, the challenge opens with an animated iris over the time and
-label, held for about 1.7s — a camera viewfinder appearing with no preamble
-reads as the phone malfunctioning at 6am, not as an alarm.
+Past the card comes a hand-off screen held for about 1.7s: the date, the time,
+the alarm's label, and — the part that earns its place — **a preview of the
+challenge that is about to be asked**, named and described, over a line that
+empties as the hold runs out. A camera viewfinder appearing with no preamble
+reads as the phone malfunctioning at 6am, not as an alarm. Tapping skips the
+hold, because a splash that cannot be skipped only ever gets in the way of the
+person who is already awake.
 
 Then the camera fills the screen behind a scrim and **the instruction sits dead
 centre in the largest type on screen**: "OPEN YOUR EYES WIDER", "GO TO YOUR
@@ -187,7 +207,8 @@ ring traces the edge of the display itself.
 
 A dedicated screen covers everything the OS can withhold that would stop the
 alarm appearing over the lock screen — notifications, full-screen intents, exact
-alarms, battery optimisation, camera — each with why it matters and a hand-off
+alarms, display over other apps, battery optimisation, camera, install unknown
+apps — each with why it matters and a hand-off
 to the right system page, re-checked on return. It also names the OEM autostart
 limits (Xiaomi, Samsung, Huawei, Oppo) that Android cannot report, because
 pretending those do not exist is how an alarm silently fails on those phones.
@@ -207,6 +228,13 @@ run is passed over however new it is. Android only accepts an update
 signed with the same key as the installed build, which is why the signing key is
 in the repository — an APK from anywhere else is rejected by the platform, and
 that rejection is surfaced verbatim rather than swallowed.
+
+Android will not let a side-loaded app hand an APK to the installer until
+"install unknown apps" is granted for it, and nothing prompts for that on its
+own. That is treated as its own state rather than a failure: the card becomes a
+button onto the right settings page, and the download resumes on the way back.
+Printing "allow IRIS to install apps in Android settings" and stopping — which
+is what an earlier build did — is instructions, not a fix.
 
 The download is written to a `.part` file and moved into place only once the
 whole body has arrived, so a dropped connection cannot leave a truncated APK for
@@ -279,7 +307,12 @@ reads. The manual trigger builds artifacts without publishing.
 
 - **Dashboard** (`ui/dashboard`) — hero clock, time to the next alarm, one row
   per alarm with its challenge glyph and repeat summary, and an inline warning
-  (tap to fix) when the OS has revoked exact alarms.
+  (tap to fix) when the OS has revoked exact alarms. **Long-pressing a row starts
+  a selection**: a ring appears at the left of every alarm, the enable toggles
+  step aside so nothing is flipped by accident, and the bottom action becomes
+  select all / cancel / delete. Back leaves the selection rather than the screen,
+  and the selection is dropped for any alarm that stops existing while it is
+  held.
 - **Editor** (`ui/editor`) — snapping hour/minute wheels at display type size,
   day chips, the three challenges as full-width options, hunt-target chips,
   label, system ringtone picker and vibration.
@@ -403,6 +436,10 @@ of it has run on a phone. The things that can only fail on a device:
 
 - Whether the full-screen intent actually draws over a secured keyguard. Several
   OEMs (Xiaomi, Samsung and others) gate this behind extra per-app permissions.
+- Whether the direct activity start from the service is accepted on an unlocked
+  phone once "display over other apps" is granted. The notification is the
+  fallback either way, but the fallback is the behaviour this change exists to
+  replace.
 - ML Kit smile probabilities in a dark bedroom at 6am — plausibly the hardest
   real-world case this app has.
 - Whether the alarm is audible in practice, and whether raising the stream
