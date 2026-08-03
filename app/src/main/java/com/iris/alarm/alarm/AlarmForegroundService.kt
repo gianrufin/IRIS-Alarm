@@ -23,6 +23,7 @@ import com.iris.alarm.domain.model.Alarm
 import com.iris.alarm.domain.model.IrisSettings
 import com.iris.alarm.domain.repository.AlarmRepository
 import com.iris.alarm.domain.repository.SettingsRepository
+import com.iris.alarm.domain.repository.SnoozeRepository
 import com.iris.alarm.domain.repository.WakeCheckRepository
 import com.iris.alarm.ui.challenge.AlarmChallengeActivity
 import dagger.hilt.android.AndroidEntryPoint
@@ -51,6 +52,8 @@ class AlarmForegroundService : Service() {
     @Inject lateinit var settingsRepository: SettingsRepository
 
     @Inject lateinit var wakeCheckRepository: WakeCheckRepository
+
+    @Inject lateinit var snoozeRepository: SnoozeRepository
 
     @Inject lateinit var scheduler: AlarmScheduler
 
@@ -87,15 +90,9 @@ class AlarmForegroundService : Service() {
                 startRinging(alarmId)
             }
 
-            AlarmContract.ACTION_DISMISS -> {
-                scheduleWakeCheckIfEnabled()
-                stopRinging()
-            }
+            AlarmContract.ACTION_DISMISS -> finishRing(Outcome.DISMISS)
 
-            AlarmContract.ACTION_SNOOZE -> {
-                snooze()
-                stopRinging()
-            }
+            AlarmContract.ACTION_SNOOZE -> finishRing(Outcome.SNOOZE)
 
             else -> {
                 // Restarted by the system with a null intent and no alarm context —
@@ -117,6 +114,8 @@ class AlarmForegroundService : Service() {
 
         acquireWakeLock()
         launchAlarmScreen(alarmId)
+        // Whatever is ringing now supersedes any "snoozed until" note.
+        AlarmNotifications.clearSnoozed(this)
 
         scope.launch {
             val alarm = if (alarmId == AlarmContract.NO_ALARM_ID) {
@@ -315,6 +314,67 @@ class AlarmForegroundService : Service() {
             .apply { acquire(AlarmContract.MAX_RINGING_MILLIS) }
     }
 
+    private enum class Outcome { DISMISS, SNOOZE }
+
+    /**
+     * Ends this ring and arms whatever comes after it.
+     *
+     * The ordering here is the whole point. Arming a snooze or a wake check
+     * needs a settings read, which suspends; stopping the service cancels
+     * [scope], so calling `stopSelf()` first killed that coroutine before it
+     * ever reached the scheduler. That is exactly what made "snooze" behave like
+     * an off switch — the alarm went quiet and nothing was ever scheduled to
+     * bring it back.
+     *
+     * So: silence the output immediately, because the user has decided and must
+     * not have to listen while a database read completes, but keep the service
+     * alive the extra moment it takes to write the follow-up.
+     */
+    private fun finishRing(outcome: Outcome) {
+        val alarmId = _ringingAlarmId.value
+        val wasWakeCheck = isWakeCheck
+        silenceOutput()
+
+        scope.launch {
+            try {
+                when (outcome) {
+                    Outcome.SNOOZE -> armSnooze(alarmId)
+                    Outcome.DISMISS -> armWakeCheck(alarmId, wasWakeCheck)
+                }
+            } catch (t: Throwable) {
+                Log.e(TAG, "Could not arm the follow-up for alarm $alarmId", t)
+            } finally {
+                stopRinging()
+            }
+        }
+    }
+
+    /**
+     * Rings the same alarm again in [IrisSettings.snoozeMinutes]. A snooze
+     * deliberately does not arm a wake check: the snooze *is* the follow-up.
+     *
+     * Snoozing a snooze is allowed and replaces the pending one rather than
+     * stacking, which is what every other alarm clock does.
+     */
+    private suspend fun armSnooze(alarmId: Long) {
+        if (alarmId == AlarmContract.NO_ALARM_ID) return
+
+        val settings = runCatching { settingsRepository.current() }.getOrNull()
+        val minutes = settings?.snoozeMinutes ?: IrisSettings.DEFAULT_SNOOZE_MINUTES
+        if (minutes <= 0) return
+
+        val firesAt = System.currentTimeMillis() + minutes * 60_000L
+        scheduler.scheduleSnooze(alarmId, firesAt)
+        snoozeRepository.set(alarmId, firesAt)
+        AlarmNotifications.showSnoozed(
+            context = this,
+            alarm = _ringingAlarm.value,
+            firesAtMillis = firesAt,
+            use24Hour = settings?.use24Hour ?: true,
+        )
+        Log.i(TAG, "Snoozed alarm $alarmId for $minutes min")
+    }
+
     /**
      * A solved challenge proves the user was awake for a few seconds, not that
      * they stayed up. When the wake check is enabled, the same challenge is
@@ -322,39 +382,30 @@ class AlarmForegroundService : Service() {
      *
      * A wake check never schedules another one — that would be an endless chain.
      */
-    private fun scheduleWakeCheckIfEnabled() {
-        if (isWakeCheck) return
-        val alarmId = _ringingAlarmId.value
-        if (alarmId == AlarmContract.NO_ALARM_ID) return
+    private suspend fun armWakeCheck(alarmId: Long, wasWakeCheck: Boolean) {
+        // Solving the challenge is the end of this alarm, so a snooze the user
+        // asked for earlier must not fire afterwards.
+        scheduler.cancelSnooze()
+        snoozeRepository.clear()
+        AlarmNotifications.clearSnoozed(this)
 
-        scope.launch {
-            val minutes = runCatching { settingsRepository.current().wakeCheckMinutes }
-                .getOrDefault(0)
-            if (minutes <= 0) return@launch
+        if (wasWakeCheck || alarmId == AlarmContract.NO_ALARM_ID) return
 
-            val firesAt = System.currentTimeMillis() + minutes * 60_000L
-            scheduler.scheduleWakeCheck(alarmId, firesAt)
-            wakeCheckRepository.set(alarmId, firesAt)
-        }
+        val minutes = runCatching { settingsRepository.current().wakeCheckMinutes }
+            .getOrDefault(0)
+        if (minutes <= 0) return
+
+        val firesAt = System.currentTimeMillis() + minutes * 60_000L
+        scheduler.scheduleWakeCheck(alarmId, firesAt)
+        wakeCheckRepository.set(alarmId, firesAt)
     }
 
     /**
-     * Rings the same alarm again shortly. A snooze deliberately does not arm a
-     * wake check: the snooze *is* the follow-up.
+     * Everything the user can hear or feel, stopped. Separate from
+     * [stopRinging] so a decision can take effect instantly while the service
+     * stays up long enough to arm what comes next. Safe to call twice.
      */
-    private fun snooze() {
-        val alarmId = _ringingAlarmId.value
-        if (alarmId == AlarmContract.NO_ALARM_ID) return
-
-        scope.launch {
-            val minutes = runCatching { settingsRepository.current().snoozeMinutes }
-                .getOrDefault(IrisSettings.DEFAULT_SNOOZE_MINUTES)
-            if (minutes <= 0) return@launch
-            scheduler.scheduleSnooze(alarmId, System.currentTimeMillis() + minutes * 60_000L)
-        }
-    }
-
-    private fun stopRinging() {
+    private fun silenceOutput() {
         autoSilenceJob?.cancel()
         autoSilenceJob = null
         rampJob?.cancel()
@@ -368,6 +419,10 @@ class AlarmForegroundService : Service() {
         abandonAudioFocus()
         restoreVolume()
         vibrator()?.cancel()
+    }
+
+    private fun stopRinging() {
+        silenceOutput()
 
         wakeLock?.takeIf { it.isHeld }?.release()
         wakeLock = null

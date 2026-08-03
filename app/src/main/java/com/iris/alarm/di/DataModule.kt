@@ -6,10 +6,12 @@ import com.iris.alarm.data.local.AlarmDao
 import com.iris.alarm.data.local.IrisDatabase
 import com.iris.alarm.data.repository.AlarmRepositoryImpl
 import com.iris.alarm.data.settings.SettingsRepositoryImpl
+import com.iris.alarm.data.settings.SnoozeRepositoryImpl
 import com.iris.alarm.data.settings.WakeCheckRepositoryImpl
 import com.iris.alarm.domain.model.DeviceCapabilities
 import com.iris.alarm.domain.repository.AlarmRepository
 import com.iris.alarm.domain.repository.SettingsRepository
+import com.iris.alarm.domain.repository.SnoozeRepository
 import com.iris.alarm.domain.repository.WakeCheckRepository
 import com.iris.alarm.vision.AndroidDeviceCapabilities
 import com.iris.alarm.vision.LumenMonitor
@@ -68,4 +70,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindWakeCheckRepository(impl: WakeCheckRepositoryImpl): WakeCheckRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSnoozeRepository(impl: SnoozeRepositoryImpl): SnoozeRepository
 }

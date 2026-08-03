@@ -12,6 +12,9 @@ object AlarmContract {
     const val ACTION_SNOOZE = "com.iris.alarm.action.SNOOZE"
     const val ACTION_SNOOZE_FIRED = "com.iris.alarm.action.SNOOZE_FIRED"
 
+    /** "Cancel snooze" from the snoozed notification. */
+    const val ACTION_CANCEL_SNOOZE = "com.iris.alarm.action.CANCEL_SNOOZE"
+
     const val EXTRA_ALARM_ID = "com.iris.alarm.extra.ALARM_ID"
 
     /** Marks a ring as the follow-up check rather than the alarm itself. */
@@ -43,4 +46,7 @@ object AlarmContract {
 
     /** As above: only one snooze can be outstanding at a time. */
     const val SNOOZE_REQUEST_CODE = 3_000_000
+
+    /** "Cancel snooze" from the notification, which is also a single slot. */
+    const val CANCEL_SNOOZE_REQUEST_CODE = 4_000_000
 }

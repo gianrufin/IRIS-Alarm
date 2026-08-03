@@ -66,6 +66,15 @@ fun RadialTimePicker(
     modifier: Modifier = Modifier,
 ) {
     val onChange by rememberUpdatedState(onTimeChange)
+
+    // Read live inside the gesture handlers. `pointerInput` is not keyed on the
+    // time — re-installing it mid-drag would drop the gesture — so the block
+    // keeps running with the closure it was created with. Capturing `hour` and
+    // `minute` directly meant a minute drag reported the hour as it was when the
+    // handler was installed, which quietly undid any hour the user had just set.
+    val currentHour by rememberUpdatedState(hour)
+    val currentMinute by rememberUpdatedState(minute)
+
     val density = LocalDensity.current
 
     // Which ring the current gesture owns; null between gestures.
@@ -91,16 +100,16 @@ fun RadialTimePicker(
         fun apply(ring: Ring, position: Offset) {
             val turns = turnsFrom(position)
             when (ring) {
-                Ring.MINUTE -> onChange(hour, RadialMath.toMinute(turns))
+                Ring.MINUTE -> onChange(currentHour, RadialMath.toMinute(turns))
                 Ring.HOUR -> {
                     val newHour = if (use24Hour) {
                         RadialMath.toHour24(turns)
                     } else {
                         // The ring reads 12 at the top, then 1..11 clockwise, and
                         // the meridiem the user already chose is preserved.
-                        to24Hour(RadialMath.toHour12(turns), isPm(hour))
+                        to24Hour(RadialMath.toHour12(turns), isPm(currentHour))
                     }
-                    onChange(newHour, minute)
+                    onChange(newHour, currentMinute)
                 }
             }
         }

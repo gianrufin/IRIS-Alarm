@@ -6,6 +6,7 @@ import android.content.Intent
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.iris.alarm.domain.repository.AlarmRepository
+import com.iris.alarm.domain.repository.SnoozeRepository
 import com.iris.alarm.domain.repository.WakeCheckRepository
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -28,7 +29,24 @@ class AlarmReceiver : BroadcastReceiver() {
 
     @Inject lateinit var wakeCheckRepository: WakeCheckRepository
 
+    @Inject lateinit var snoozeRepository: SnoozeRepository
+
     override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action == AlarmContract.ACTION_CANCEL_SNOOZE) {
+            // From the "snoozed until" notification: the user is up after all.
+            scheduler.cancelSnooze()
+            AlarmNotifications.clearSnoozed(context)
+            val pendingCancel = goAsync()
+            scope.launch {
+                try {
+                    snoozeRepository.clear()
+                } finally {
+                    pendingCancel.finish()
+                }
+            }
+            return
+        }
+
         val isWakeCheck = intent.action == AlarmContract.ACTION_WAKE_CHECK
         val isSnooze = intent.action == AlarmContract.ACTION_SNOOZE_FIRED
         if (intent.action != AlarmContract.ACTION_ALARM_FIRED && !isWakeCheck && !isSnooze) return
@@ -46,8 +64,19 @@ class AlarmReceiver : BroadcastReceiver() {
         )
 
         // A snooze ringing again is the same alarm, so it must not re-arm the
-        // schedule or disable a one-shot a second time.
-        if (isSnooze) return
+        // schedule or disable a one-shot a second time. It is no longer pending,
+        // though — it just fired.
+        if (isSnooze) {
+            val pendingSnooze = goAsync()
+            scope.launch {
+                try {
+                    snoozeRepository.clear()
+                } finally {
+                    pendingSnooze.finish()
+                }
+            }
+            return
+        }
 
         if (isWakeCheck) {
             // The check has fired, so nothing is pending any more; re-arming the

@@ -169,8 +169,33 @@ for. It is deliberately a drag across a third of the screen rather than a button
 because half asleep a button is easy to hit by accident — but a fling counts too,
 provided it agrees with the direction already travelled.
 
-Snooze length is a setting; set it to off and the left half of the swipe goes
-away rather than silently doing nothing.
+As the card moves the whole canvas takes the colour of the decision — green for
+stop, amber for snooze — and the line under it stops describing the gesture and
+starts describing the consequence: "SNOOZING · RINGS AGAIN IN 9 MIN".
+
+### How snooze works
+
+Swiping left arms a one-shot `AlarmManager` alarm for **now + the snooze length**
+(default 9 minutes, `Settings → Snooze`), silences the current ring, and posts a
+low-priority ongoing notification saying *Snoozed until 06:09* with a **Cancel
+snooze** action. When it fires, the same alarm rings again with the same
+challenge, and can be snoozed again — each snooze replaces the pending one rather
+than stacking, so there is only ever one outstanding. Solving the challenge,
+cancelling from the notification, or disabling or deleting the alarm all cancel
+it. Set the snooze length to off and the left half of the swipe goes away rather
+than silently doing nothing.
+
+Snooze is the one decision that is *not* an escape: it costs the user another
+alarm, and the challenge is still waiting at the end of it.
+
+The ordering inside `AlarmForegroundService` matters more than it looks. Arming
+the snooze needs a settings read, which suspends, and stopping the service
+cancels the scope that read is running in — so an earlier build called
+`stopSelf()` first and killed the coroutine before it ever reached the scheduler.
+The alarm went quiet and nothing was ever scheduled to bring it back, which made
+snooze behave exactly like an off switch. Now the audio is silenced immediately,
+the follow-up is armed, and only then does the service stop. The dismiss path had
+the same defect, which is why the wake check also never fired.
 
 
 Past the card comes a hand-off screen held for about 1.7s: the date, the time,
@@ -180,6 +205,13 @@ empties as the hold runs out. A camera viewfinder appearing with no preamble
 reads as the phone malfunctioning at 6am, not as an alarm. Tapping skips the
 hold, because a splash that cannot be skipped only ever gets in the way of the
 person who is already awake.
+
+For the mirror challenge the screen becomes the light source: window brightness
+goes to full and the scrim thins out, with a white radial wash that is bright at
+the edges and clear in the middle — a ring light, not a flood, because washing
+the whole screen white would blow out the preview it is meant to help. The
+brightness is a window attribute, so it needs no permission, applies to the
+ringing screen only, and reverts when it closes.
 
 Then the camera fills the screen behind a scrim and **the instruction sits dead
 centre in the largest type on screen**: "OPEN YOUR EYES WIDER", "GO TO YOUR
@@ -428,6 +460,14 @@ usually harbour off-by-ones are unit tested: a full turn is 0 and not 60, the to
 of a 12-hour ring reads 12 and not 0, and every minute is reachable.
 
 A new alarm opens at the current time; editing one opens at its own time.
+
+The dial's gesture handlers are deliberately not keyed on the time — re-installing
+them mid-drag would drop the gesture — so the running handler keeps the closure it
+was created with. That made an earlier build read `hour` as it was when the
+handler was installed: setting the hour and then dragging the minutes reported the
+*old* hour alongside the new minute, and the hour silently snapped back. Both
+values are now read through `rememberUpdatedState`, so the handler always reports
+the time as it currently is.
 
 ## Not yet verified on hardware
 

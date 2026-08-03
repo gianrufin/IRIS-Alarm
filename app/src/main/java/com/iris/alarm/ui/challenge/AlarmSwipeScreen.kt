@@ -37,6 +37,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
@@ -92,6 +93,32 @@ fun AlarmSwipeScreen(
 
         // Signed 0..1 towards a decision: negative snooze, positive stop.
         val progress = (offset.value / commitDistance).coerceIn(-1f, 1f)
+        val intensity = abs(progress)
+
+        // The whole canvas takes the colour of the decision being made — green
+        // for stop, amber for snooze — so the commitment is readable without
+        // looking at anything in particular, which at 6am is the only kind of
+        // reading that reliably happens.
+        val wash = if (progress >= 0f) {
+            MaterialTheme.colorScheme.secondary
+        } else {
+            MaterialTheme.colorScheme.primary
+        }
+        val washStops = listOf(
+            wash.copy(alpha = 0.04f * intensity),
+            wash.copy(alpha = 0.16f * intensity),
+            wash.copy(alpha = 0.44f * intensity),
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.horizontalGradient(
+                        // Densest at the edge the card is heading for.
+                        if (progress >= 0f) washStops else washStops.asReversed(),
+                    ),
+                ),
+        )
 
         val breathe by rememberInfiniteTransition(label = "breathe").animateFloat(
             initialValue = 0.4f,
@@ -125,7 +152,10 @@ fun AlarmSwipeScreen(
                 ) {
                     SwipeTarget(
                         icon = Icons.Rounded.Snooze,
-                        label = if (snoozeEnabled) "SNOOZE $snoozeMinutes" else "SNOOZE OFF",
+                        // The length is on the control itself, because "how long
+                        // is snooze" is not a question anyone wants to go looking
+                        // for while the alarm is going off.
+                        label = if (snoozeEnabled) "SNOOZE\n$snoozeMinutes MIN" else "SNOOZE\nOFF",
                         colour = MaterialTheme.colorScheme.primary,
                         // Only the side being approached reacts.
                         emphasis = if (snoozeEnabled) (-progress).coerceAtLeast(0f) else 0f,
@@ -133,7 +163,7 @@ fun AlarmSwipeScreen(
                     )
                     SwipeTarget(
                         icon = Icons.Rounded.Close,
-                        label = "STOP",
+                        label = "STOP\nFOR GOOD",
                         colour = MaterialTheme.colorScheme.secondary,
                         emphasis = progress.coerceAtLeast(0f),
                         idleAlpha = breathe * 0.5f,
@@ -192,16 +222,37 @@ fun AlarmSwipeScreen(
                 )
             }
 
+            // Says what is about to happen, not what the gesture is called. Once
+            // the card is moving, "swipe left to snooze" is a description of
+            // something already in progress and stops being useful.
+            val committing = intensity > 0.22f
+            val hint = when {
+                committing && progress < 0f && snoozeEnabled ->
+                    "SNOOZING · RINGS AGAIN IN $snoozeMinutes MIN"
+                committing && progress < 0f -> "SNOOZE IS OFF"
+                committing -> "STOPPING · ${
+                    alarm?.challenge?.displayName?.uppercase() ?: "CHALLENGE"
+                } NEXT"
+                snoozeEnabled -> "SWIPE LEFT TO SNOOZE $snoozeMinutes MIN   ·   RIGHT TO STOP"
+                else -> "SWIPE RIGHT TO STOP"
+            }
+
             Text(
-                text = if (snoozeEnabled) {
-                    "SWIPE LEFT TO SNOOZE   ·   RIGHT TO STOP"
-                } else {
-                    "SWIPE RIGHT TO STOP"
-                },
+                text = hint,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (committing) {
+                    if (progress < 0f) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.secondary
+                    }
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
                 textAlign = TextAlign.Center,
-                modifier = Modifier.graphicsLayer { alpha = breathe },
+                // Stops breathing once a direction is chosen — the pulse is an
+                // invitation, and the invitation has been accepted.
+                modifier = Modifier.graphicsLayer { alpha = if (committing) 1f else breathe },
             )
         }
     }

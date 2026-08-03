@@ -1,5 +1,8 @@
 package com.iris.alarm.ui.challenge
 
+import android.app.Activity
+import android.content.ContextWrapper
+import android.view.WindowManager
 import androidx.camera.core.CameraSelector
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
@@ -45,6 +48,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -156,20 +160,58 @@ fun ChallengeScreen(
             else -> Unit
         }
 
-        // Darkened so white type stays readable over whatever the camera sees.
+        // The front camera has to find a face in a dark bedroom, and the only
+        // light source available is the screen itself. So for the mirror
+        // challenge the screen turns itself up and stops smothering its own
+        // preview; the other two are looking outward and gain nothing from it.
+        val litForSelfie = challenge == VisionChallenge.SMILE &&
+            needsCamera &&
+            cameraPermission.status.isGranted
+        MaxScreenBrightness(active = litForSelfie)
+
+        // Darkened so white type stays readable over whatever the camera sees —
+        // less so when the preview *is* the thing being read.
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        listOf(
-                            Color.Black.copy(alpha = 0.82f),
-                            Color.Black.copy(alpha = 0.55f),
-                            Color.Black.copy(alpha = 0.86f),
-                        ),
+                        if (litForSelfie) {
+                            listOf(
+                                Color.Black.copy(alpha = 0.62f),
+                                Color.Black.copy(alpha = 0.16f),
+                                Color.Black.copy(alpha = 0.68f),
+                            )
+                        } else {
+                            listOf(
+                                Color.Black.copy(alpha = 0.82f),
+                                Color.Black.copy(alpha = 0.55f),
+                                Color.Black.copy(alpha = 0.86f),
+                            )
+                        },
                     ),
                 ),
         )
+
+        if (litForSelfie) {
+            // A ring light, not a flood: bright at the edges where there is no
+            // face, clear in the middle where there is one. Washing the whole
+            // screen white would blow out the preview it is meant to help.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.radialGradient(
+                            colorStops = arrayOf(
+                                0.0f to Color.Transparent,
+                                0.55f to Color.Transparent,
+                                0.85f to Color.White.copy(alpha = 0.30f),
+                                1.0f to Color.White.copy(alpha = 0.55f),
+                            ),
+                        ),
+                    ),
+            )
+        }
 
         // The progress ring traces the edge of the display itself.
         Box(
@@ -240,6 +282,39 @@ fun ChallengeScreen(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Turns the display to full brightness while [active], and puts the user's own
+ * setting back on the way out.
+ *
+ * This is a window attribute rather than a system setting, so it applies to this
+ * screen only and needs no permission — nothing outside the ringing alarm is
+ * changed, and it reverts even if the activity is killed.
+ */
+@Composable
+private fun MaxScreenBrightness(active: Boolean) {
+    val view = LocalView.current
+
+    DisposableEffect(active, view) {
+        val window = generateSequence(view.context) { (it as? ContextWrapper)?.baseContext }
+            .filterIsInstance<Activity>()
+            .firstOrNull()
+            ?.window
+
+        val previous = window?.attributes?.screenBrightness
+        if (active && window != null) {
+            window.attributes = window.attributes.apply {
+                screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL
+            }
+        }
+
+        onDispose {
+            if (window != null && previous != null) {
+                window.attributes = window.attributes.apply { screenBrightness = previous }
             }
         }
     }

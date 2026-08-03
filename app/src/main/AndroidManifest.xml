@@ -121,6 +121,7 @@
                 <action android:name="com.iris.alarm.action.ALARM_FIRED" />
                 <action android:name="com.iris.alarm.action.WAKE_CHECK" />
                 <action android:name="com.iris.alarm.action.SNOOZE_FIRED" />
+                <action android:name="com.iris.alarm.action.CANCEL_SNOOZE" />
             </intent-filter>
         </receiver>
 

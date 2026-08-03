@@ -12,6 +12,14 @@
     <string name="notification_snooze">Snooze %1$d min</string>
     <string name="notification_stop">Stop</string>
 
+    <string name="channel_snoozed_name">Snoozed alarms</string>
+    <string name="channel_snoozed_description">Shown while an IRIS alarm is snoozed, so you can see when it will ring again.</string>
+
+    <string name="notification_snoozed_title">Snoozed until %1$s</string>
+    <string name="notification_snoozed_text">%1$s will ring again</string>
+    <string name="notification_snoozed_text_generic">IRIS will ring again</string>
+    <string name="notification_snoozed_cancel">Cancel snooze</string>
+
     <string name="channel_tools_name">Timers and stopwatch</string>
     <string name="channel_tools_description">Shown while a timer, stopwatch or focus block is running.</string>
 
