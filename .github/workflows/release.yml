@@ -1,12 +1,12 @@
 name: Release APK
 
 # Builds signed APKs and publishes them as a GitHub Release, which is also what
-# the in-app updater reads. Tag a commit to cut a release:
+# the in-app updater reads.
 #
-#   git tag v0.2.0 && git push origin v0.2.0
-#
-# The manual trigger builds and uploads artifacts without publishing a release,
-# for checking a branch on a device.
+#   - Push a tag (v0.3.0) to cut a normal release.
+#   - Run it manually to publish the current branch as a pre-release, tagged
+#     from the versionName in app/build.gradle.kts. The tag is created by the
+#     workflow, so no local tag push is needed.
 
 on:
   push:
@@ -39,21 +39,31 @@ jobs:
       - name: Build release APKs
         run: ./gradlew :app:assembleRelease
 
-      - name: Name the APKs
-        id: rename
+      - name: Work out the version and name the APKs
+        id: package
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
-          [ "$GITHUB_REF_TYPE" = "tag" ] || version="$(git rev-parse --short HEAD)"
+
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            version="${GITHUB_REF_NAME#v}"
+            prerelease=false
+          else
+            # Manual run: take the version the app reports, so the tag and the
+            # in-app updater always agree on what this build is.
+            version="$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)"
+            prerelease=true
+          fi
+
           mkdir -p dist
           for abi in arm64-v8a armeabi-v7a x86_64 universal; do
             src="app/build/outputs/apk/release/app-${abi}-release.apk"
-            if [ -f "$src" ]; then
-              cp "$src" "dist/iris-alarm-${version}-${abi}.apk"
-            fi
+            [ -f "$src" ] && cp "$src" "dist/iris-alarm-${version}-${abi}.apk"
           done
           ls -la dist
+
           echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${version}" >> "$GITHUB_OUTPUT"
+          echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -63,17 +73,21 @@ jobs:
           retention-days: 30
 
       - name: Publish release
-        if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
+          # Creates the tag at this commit if it does not exist yet.
+          tag_name: ${{ steps.package.outputs.tag }}
+          name: IRIS Alarm ${{ steps.package.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          prerelease: ${{ steps.package.outputs.prerelease }}
           files: dist/*.apk
           generate_release_notes: true
           body: |
-            Side-loadable APKs for IRIS Alarm ${{ steps.rename.outputs.version }}.
+            Side-loadable APKs for IRIS Alarm ${{ steps.package.outputs.version }}.
 
-            Install `arm64-v8a` on any modern phone. `universal` works on
+            Install **`arm64-v8a`** on any modern phone. `universal` works on
             anything but is roughly three times the size.
 
             These are signed with the repository's side-load key, so the in-app
-            updater can install them over an existing IRIS install. They are not
-            Play Store builds.
+            updater (Settings → Updates) can install them over an existing IRIS.
+            They are not Play Store builds.
