@@ -32,6 +32,7 @@ import com.iris.alarm.ui.theme.IrisTheme
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onOpenPermissions: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
@@ -45,6 +46,8 @@ fun SettingsScreen(
         onMinimumVolume = viewModel::setMinimumVolumePercent,
         onWakeCheck = viewModel::setWakeCheckMinutes,
         onBack = onBack,
+        onOpenPermissions = onOpenPermissions,
+        onUse24Hour = viewModel::setUse24Hour,
         modifier = modifier,
     )
 }
@@ -58,6 +61,8 @@ private fun SettingsContent(
     onMinimumVolume: (Int) -> Unit,
     onWakeCheck: (Int) -> Unit,
     onBack: () -> Unit,
+    onOpenPermissions: () -> Unit,
+    onUse24Hour: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -82,6 +87,18 @@ private fun SettingsContent(
                 text = "SETTINGS",
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.onBackground,
+            )
+        }
+
+        Setting(
+            title = "CLOCK",
+            detail = "How times are shown across the app",
+        ) {
+            ChoiceRow(
+                options = listOf(true, false),
+                selected = settings.use24Hour,
+                label = { if (it) "24 HOUR" else "12 HOUR" },
+                onSelect = onUse24Hour,
             )
         }
 
@@ -148,7 +165,32 @@ private fun SettingsContent(
             )
         }
 
+        Setting(
+            title = "PERMISSIONS",
+            detail = "Everything the system can withhold that would stop the alarm " +
+                "showing over your lock screen.",
+        ) {
+            Chip(text = "REVIEW PERMISSIONS", onClick = onOpenPermissions)
+        }
+
         Box(Modifier.padding(bottom = 24.dp))
+    }
+}
+
+/** A standalone tappable chip, for actions rather than choices. */
+@Composable
+private fun Chip(text: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 12.dp),
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+        )
     }
 }
 
@@ -232,6 +274,8 @@ private fun SettingsPreview() {
             onMinimumVolume = {},
             onWakeCheck = {},
             onBack = {},
+            onOpenPermissions = {},
+            onUse24Hour = {},
         )
     }
 }

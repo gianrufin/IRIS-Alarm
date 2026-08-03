@@ -8,8 +8,11 @@ enum class VisionChallenge {
     /** Front camera + ML Kit face detection: hold a smile with eyes open. */
     SMILE,
 
-    /** Rear camera + ML Kit image labeling: point the phone at a target object. */
-    OBJECT_HUNT,
+    /**
+     * Rear camera + scene matching: go back to the place the alarm was anchored
+     * to when it was set.
+     */
+    ANCHOR,
 
     /** Ambient light sensor: walk to a bright place until lux clears the target. */
     LUMEN,
@@ -18,42 +21,16 @@ enum class VisionChallenge {
     val displayName: String
         get() = when (this) {
             SMILE -> "Mirror Iris"
-            OBJECT_HUNT -> "Target Iris"
+            ANCHOR -> "Target Iris"
             LUMEN -> "Light Iris"
         }
 
     val prompt: String
         get() = when (this) {
             SMILE -> "SMILE"
-            OBJECT_HUNT -> "FIND IT"
+            ANCHOR -> "FIND YOUR SPOT"
             LUMEN -> "FIND LIGHT"
         }
-}
-
-/**
- * Targets offered for [VisionChallenge.OBJECT_HUNT].
- *
- * Every entry MUST exist in the default on-device labeler's vocabulary — a
- * target the model cannot emit is a target the user can never hunt down, and the
- * alarm would only stop at the auto-silence timeout. `HuntTargetLabelTest`
- * asserts this against the label list shipped inside the model asset; add a
- * target only after it passes.
- */
-enum class HuntTarget(
-    /**
-     * Label as emitted by ML Kit's on-device image labeler. Matching is done on
-     * this exact string, case-insensitively.
-     */
-    val mlKitLabel: String,
-) {
-    CUP("Cup"),
-    SHOE("Shoe"),
-    PLANT("Plant"),
-    GLASSES("Glasses"),
-    JACKET("Jacket"),
-    ;
-
-    val displayName: String get() = mlKitLabel.uppercase()
 }
 
 /** Tuning constants for the three detectors, kept in one place. */
@@ -64,10 +41,15 @@ object ChallengeThresholds {
     /** The smile must be held continuously for this long before dismissal. */
     const val SMILE_HOLD_MILLIS = 3_000L
 
-    const val OBJECT_CONFIDENCE = 0.8f
+    /**
+     * How close a live frame must be to the captured anchor. Handheld framing is
+     * never exact and the light will have changed since capture, so this is a
+     * "clearly the same place" bar rather than a "pixel identical" one.
+     */
+    const val ANCHOR_SIMILARITY = 0.82f
 
-    /** Consecutive qualifying frames required before an object hunt passes. */
-    const val OBJECT_FRAME_STREAK = 5
+    /** Consecutive qualifying frames required before an anchor match passes. */
+    const val ANCHOR_FRAME_STREAK = 4
 
     const val LUMEN_TARGET = 500f
 

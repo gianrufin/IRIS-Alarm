@@ -42,8 +42,10 @@ class AlarmChallengeActivity : ComponentActivity() {
         setContent {
             IrisTheme(darkTheme = true) {
                 val alarm by AlarmForegroundService.ringingAlarm.collectAsStateWithLifecycle()
+                val use24Hour by AlarmForegroundService.use24Hour.collectAsStateWithLifecycle()
                 ChallengeScreen(
                     alarm = alarm,
+                    use24Hour = use24Hour,
                     onChallengeSolved = { dismiss() },
                 )
             }

@@ -3,7 +3,6 @@ package com.iris.alarm.data.local
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.iris.alarm.domain.model.Alarm
-import com.iris.alarm.domain.model.HuntTarget
 import com.iris.alarm.domain.model.VisionChallenge
 import java.time.DayOfWeek
 
@@ -16,7 +15,8 @@ data class AlarmEntity(
     /** Bitmask over [DayOfWeek.getValue] (Monday = bit 0 … Sunday = bit 6). */
     val repeatMask: Int,
     val challenge: VisionChallenge,
-    val huntTarget: HuntTarget,
+    val anchorSignature: String?,
+    val anchorThumbnailPath: String?,
     val soundUri: String?,
     val vibrate: Boolean,
     val enabled: Boolean,
@@ -32,7 +32,8 @@ fun AlarmEntity.toDomain(): Alarm = Alarm(
     label = label,
     repeatDays = repeatMask.toDays(),
     challenge = challenge,
-    huntTarget = huntTarget,
+    anchorSignature = anchorSignature,
+    anchorThumbnailPath = anchorThumbnailPath,
     soundUri = soundUri,
     vibrate = vibrate,
     enabled = enabled,
@@ -47,7 +48,8 @@ fun Alarm.toEntity(): AlarmEntity = AlarmEntity(
     label = label,
     repeatMask = repeatDays.toMask(),
     challenge = challenge,
-    huntTarget = huntTarget,
+    anchorSignature = anchorSignature,
+    anchorThumbnailPath = anchorThumbnailPath,
     soundUri = soundUri,
     vibrate = vibrate,
     enabled = enabled,

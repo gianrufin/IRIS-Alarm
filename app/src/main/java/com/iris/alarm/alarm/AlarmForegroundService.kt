@@ -124,6 +124,7 @@ class AlarmForegroundService : Service() {
                 .getOrDefault(IrisSettings())
                 .effectiveFor(alarm)
 
+            _use24Hour.value = settings.use24Hour
             raiseVolumeFloor(settings.minimumVolumePercent)
             startAudio(alarm?.soundUri?.let(Uri::parse), settings.volumeRampSeconds)
             if (alarm?.vibrate != false) startVibration()
@@ -349,6 +350,11 @@ class AlarmForegroundService : Service() {
 
         private val _ringingAlarm = MutableStateFlow<Alarm?>(null)
         val ringingAlarm: StateFlow<Alarm?> = _ringingAlarm.asStateFlow()
+
+        private val _use24Hour = MutableStateFlow(true)
+
+        /** Clock format for the lock-screen surfaces, which have no settings access. */
+        val use24Hour: StateFlow<Boolean> = _use24Hour.asStateFlow()
 
         private val _ringingIsWakeCheck = MutableStateFlow(false)
 

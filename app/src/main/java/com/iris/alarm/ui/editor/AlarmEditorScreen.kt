@@ -45,10 +45,15 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.IntentCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.iris.alarm.domain.model.HuntTarget
 import com.iris.alarm.domain.model.IrisSettings
 import com.iris.alarm.domain.model.VisionChallenge
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
 import com.iris.alarm.ui.components.NumberWheel
+import com.iris.alarm.ui.components.isPm
+import com.iris.alarm.ui.components.rememberAnchorThumbnail
+import com.iris.alarm.ui.components.to12Hour
+import com.iris.alarm.ui.components.to24Hour
 import com.iris.alarm.ui.components.challengeIcon
 import com.iris.alarm.ui.theme.IrisTheme
 import com.iris.alarm.ui.theme.IrisType
@@ -58,10 +63,13 @@ import java.time.DayOfWeek
 @Composable
 fun AlarmEditorScreen(
     onDone: () -> Unit,
+    onCaptureAnchor: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: AlarmEditorViewModel = hiltViewModel(),
 ) {
     val draft by viewModel.draft.collectAsStateWithLifecycle()
+    val use24Hour by viewModel.use24Hour.collectAsStateWithLifecycle()
+    val canSave by viewModel.canSave.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     val soundPicker = rememberLauncherForActivityResult(
@@ -122,6 +130,7 @@ fun AlarmEditorScreen(
             TimeSelector(
                 hour = draft.hour,
                 minute = draft.minute,
+                use24Hour = use24Hour,
                 onTimeChange = viewModel::setTime,
             )
 
@@ -141,11 +150,11 @@ fun AlarmEditorScreen(
                 }
             }
 
-            if (draft.challenge == VisionChallenge.OBJECT_HUNT) {
-                Section(title = "TARGET") {
-                    TargetPicker(
-                        selected = draft.huntTarget,
-                        onSelect = viewModel::setHuntTarget,
+            if (draft.challenge == VisionChallenge.ANCHOR) {
+                Section(title = "TARGET SPOT") {
+                    AnchorPicker(
+                        thumbnailPath = draft.anchorThumbnailPath,
+                        onCapture = onCaptureAnchor,
                     )
                 }
             }
@@ -239,17 +248,20 @@ fun AlarmEditorScreen(
 
         Button(
             onClick = { viewModel.save(onDone) },
+            enabled = canSave,
             shape = RoundedCornerShape(32.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.onBackground,
                 contentColor = MaterialTheme.colorScheme.background,
+                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
             ),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 24.dp),
         ) {
             Text(
-                text = "SAVE",
+                text = if (canSave) "SAVE" else "CAPTURE A TARGET FIRST",
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.padding(vertical = 10.dp),
             )
@@ -258,29 +270,104 @@ fun AlarmEditorScreen(
 }
 
 @Composable
-private fun TimeSelector(hour: Int, minute: Int, onTimeChange: (Int, Int) -> Unit) {
+private fun TimeSelector(
+    hour: Int,
+    minute: Int,
+    use24Hour: Boolean,
+    onTimeChange: (Int, Int) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            NumberWheel(
+                // In 12-hour mode the wheel counts 1..12 and the AM/PM toggle
+                // supplies the rest, so the stored 0..23 hour is converted both ways.
+                value = if (use24Hour) hour else to12Hour(hour),
+                range = if (use24Hour) 0..23 else 1..12,
+                onValueChange = { picked ->
+                    val newHour = if (use24Hour) picked else to24Hour(picked, isPm(hour))
+                    onTimeChange(newHour, minute)
+                },
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = ":",
+                style = IrisType.ClockCompact,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            NumberWheel(
+                value = minute,
+                range = 0..59,
+                onValueChange = { onTimeChange(hour, it) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        if (!use24Hour) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                listOf(false, true).forEach { pm ->
+                    val selected = isPm(hour) == pm
+                    Box(modifier = Modifier.weight(1f)) {
+                        Chip(
+                            text = if (pm) "PM" else "AM",
+                            selected = selected,
+                            onClick = { onTimeChange(to24Hour(to12Hour(hour), pm), minute) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** The captured spot for an anchor alarm, or the prompt to capture one. */
+@Composable
+private fun AnchorPicker(thumbnailPath: String?, onCapture: () -> Unit) {
+    val thumbnail = rememberAnchorThumbnail(thumbnailPath)
+
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(28.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(28.dp))
+            .clickable(onClick = onCapture)
+            .padding(20.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        NumberWheel(
-            value = hour,
-            range = 0..23,
-            onValueChange = { onTimeChange(it, minute) },
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            text = ":",
-            style = IrisType.ClockCompact,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        NumberWheel(
-            value = minute,
-            range = 0..59,
-            onValueChange = { onTimeChange(hour, it) },
-            modifier = Modifier.weight(1f),
-        )
+        if (thumbnail != null) {
+            Image(
+                bitmap = thumbnail,
+                contentDescription = "Your captured target spot",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(width = 60.dp, height = 80.dp)
+                    .clip(RoundedCornerShape(16.dp)),
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = if (thumbnail == null) "CAPTURE A SPOT" else "RETAKE",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Text(
+                text = if (thumbnail == null) {
+                    "The alarm stops when you point the camera at this spot again"
+                } else {
+                    "You will have to come back here to stop the alarm"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -372,48 +459,6 @@ private fun ChallengeOption(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun TargetPicker(selected: HuntTarget, onSelect: (HuntTarget) -> Unit) {
-    // Wraps rather than squeezing: target names are shown in full, because a
-    // truncated "GLAS" tells the user nothing about what to go and find.
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        HuntTarget.entries.forEach { target ->
-            val isOn = target == selected
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(if (isOn) MaterialTheme.colorScheme.primary else Color.Transparent)
-                    .border(
-                        width = 1.dp,
-                        color = if (isOn) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.outline
-                        },
-                        shape = RoundedCornerShape(20.dp),
-                    )
-                    .clickable { onSelect(target) }
-                    .padding(horizontal = 18.dp, vertical = 12.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = target.displayName,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (isOn) {
-                        MaterialTheme.colorScheme.onPrimary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                )
-            }
-        }
-    }
-}
-
 /**
  * A per-alarm override of a global setting. "DEFAULT" is a real, selectable
  * value rather than the absence of one, so the alarm can be put back to
@@ -443,9 +488,14 @@ private fun OverrideRow(
 }
 
 @Composable
-private fun Chip(text: String, selected: Boolean, onClick: () -> Unit) {
+private fun Chip(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .clip(RoundedCornerShape(20.dp))
             .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
             .border(
@@ -502,7 +552,7 @@ private fun SettingRow(label: String, onClick: () -> Unit) {
 
 private fun VisionChallenge.description(): String = when (this) {
     VisionChallenge.SMILE -> "Hold a smile at the front camera for 3 seconds"
-    VisionChallenge.OBJECT_HUNT -> "Find and point the rear camera at an object"
+    VisionChallenge.ANCHOR -> "Go back to a spot you capture now"
     VisionChallenge.LUMEN -> "Walk somewhere bright until the sensor clears 500 lux"
 }
 

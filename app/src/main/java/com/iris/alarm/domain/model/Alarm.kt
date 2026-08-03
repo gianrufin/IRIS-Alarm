@@ -14,7 +14,10 @@ data class Alarm(
     /** Empty means "fire once, at the next occurrence of this time". */
     val repeatDays: Set<DayOfWeek> = emptySet(),
     val challenge: VisionChallenge = VisionChallenge.SMILE,
-    val huntTarget: HuntTarget = HuntTarget.CUP,
+    /** Serialised [com.iris.alarm.vision.SceneSignature] for the anchor challenge. */
+    val anchorSignature: String? = null,
+    /** Absolute path to the anchor thumbnail shown as a reminder of the spot. */
+    val anchorThumbnailPath: String? = null,
     val soundUri: String? = null,
     val vibrate: Boolean = true,
     val enabled: Boolean = true,
@@ -29,6 +32,10 @@ data class Alarm(
     val time: LocalTime get() = LocalTime.of(hour, minute)
 
     val isRepeating: Boolean get() = repeatDays.isNotEmpty()
+
+    /** An anchor alarm cannot be armed until a spot has been captured. */
+    val isReadyToSchedule: Boolean
+        get() = challenge != VisionChallenge.ANCHOR || anchorSignature != null
 
     /**
      * Next wall-clock instant this alarm should fire, at or after [from].

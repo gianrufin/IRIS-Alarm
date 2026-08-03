@@ -6,6 +6,7 @@ import com.iris.alarm.alarm.AlarmScheduler
 import com.iris.alarm.domain.model.Alarm
 import com.iris.alarm.domain.usecase.DeleteAlarm
 import com.iris.alarm.domain.usecase.ObserveAlarms
+import com.iris.alarm.domain.repository.SettingsRepository
 import com.iris.alarm.domain.repository.WakeCheckRepository
 import com.iris.alarm.domain.usecase.SetAlarmEnabled
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,6 +28,7 @@ data class DashboardUiState(
     val nextAlarmSummary: String? = null,
     /** "WAKE CHECK IN 5 MIN", or null when no check is pending. */
     val wakeCheckSummary: String? = null,
+    val use24Hour: Boolean = true,
 )
 
 @HiltViewModel
@@ -35,17 +37,20 @@ class DashboardViewModel @Inject constructor(
     private val setAlarmEnabled: SetAlarmEnabled,
     private val deleteAlarm: DeleteAlarm,
     private val wakeCheckRepository: WakeCheckRepository,
+    settingsRepository: SettingsRepository,
     private val scheduler: AlarmScheduler,
 ) : ViewModel() {
 
     val uiState: StateFlow<DashboardUiState> = combine(
         observeAlarms(),
         wakeCheckRepository.pendingAt,
-    ) { alarms, wakeCheckAt ->
+        settingsRepository.settings,
+    ) { alarms, wakeCheckAt, settings ->
         DashboardUiState(
             alarms = alarms,
             nextAlarmSummary = summariseNext(alarms),
             wakeCheckSummary = summariseWakeCheck(wakeCheckAt),
+            use24Hour = settings.use24Hour,
         )
     }
         .stateIn(

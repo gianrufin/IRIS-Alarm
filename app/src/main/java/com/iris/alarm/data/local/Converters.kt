@@ -1,7 +1,6 @@
 package com.iris.alarm.data.local
 
 import androidx.room.TypeConverter
-import com.iris.alarm.domain.model.HuntTarget
 import com.iris.alarm.domain.model.VisionChallenge
 
 /**
@@ -13,13 +12,16 @@ class Converters {
     fun challengeToString(value: VisionChallenge): String = value.name
 
     @TypeConverter
-    fun stringToChallenge(value: String): VisionChallenge =
-        runCatching { VisionChallenge.valueOf(value) }.getOrDefault(VisionChallenge.SMILE)
+    fun stringToChallenge(value: String): VisionChallenge = when (value) {
+        // Rows written before the object hunt became the place anchor. The alarm
+        // has no captured spot yet, which the challenge screen handles by
+        // falling back rather than by ringing forever.
+        LEGACY_OBJECT_HUNT -> VisionChallenge.ANCHOR
+        else -> runCatching { VisionChallenge.valueOf(value) }
+            .getOrDefault(VisionChallenge.SMILE)
+    }
 
-    @TypeConverter
-    fun targetToString(value: HuntTarget): String = value.name
-
-    @TypeConverter
-    fun stringToTarget(value: String): HuntTarget =
-        runCatching { HuntTarget.valueOf(value) }.getOrDefault(HuntTarget.CUP)
+    private companion object {
+        const val LEGACY_OBJECT_HUNT = "OBJECT_HUNT"
+    }
 }

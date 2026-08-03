@@ -2,6 +2,7 @@ package com.iris.alarm.ui.challenge
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.iris.alarm.domain.model.Alarm
 import com.iris.alarm.domain.model.DeviceCapabilities
 import com.iris.alarm.domain.model.VisionChallenge
 import com.iris.alarm.domain.model.resolveChallenge
@@ -26,6 +27,9 @@ data class ChallengeUiState(
      * plain dismiss — an alarm nobody can stop is worse than a skipped challenge.
      */
     val escapeAllowed: Boolean = false,
+
+    /** An anchor alarm whose captured spot is missing, so it cannot be matched. */
+    val anchorMissing: Boolean = false,
 )
 
 /**
@@ -48,10 +52,27 @@ class ChallengeViewModel @Inject constructor(
     /** Guards against a recomposition restarting an already-resolved challenge. */
     private var started = false
 
-    /** Call once with the alarm's configured challenge; resolves and starts it. */
-    fun start(requested: VisionChallenge) {
+    /** Call once with the ringing alarm; resolves a runnable challenge and starts it. */
+    fun start(alarm: Alarm?) {
         if (started) return
         started = true
+
+        val requested = alarm?.challenge ?: VisionChallenge.SMILE
+
+        // An anchor with no captured spot can never be matched — it would ring
+        // until the auto-silence timeout. Fall back to something runnable and say
+        // so, rather than presenting an impossible challenge.
+        if (requested == VisionChallenge.ANCHOR && alarm?.anchorSignature == null) {
+            val fallback = resolveChallenge(VisionChallenge.SMILE, capabilities)
+            _uiState.value = ChallengeUiState(
+                challenge = fallback ?: VisionChallenge.SMILE,
+                notice = "NO TARGET SAVED · USING ${fallback?.displayName?.uppercase() ?: "NONE"}",
+                escapeAllowed = fallback == null,
+                anchorMissing = true,
+            )
+            if (fallback == VisionChallenge.LUMEN) startLumenMonitoring()
+            return
+        }
 
         val resolved = resolveChallenge(requested, capabilities)
         if (resolved == null) {

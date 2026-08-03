@@ -23,14 +23,14 @@ class ChallengeResolutionTest {
     fun `no light sensor falls back to a camera challenge`() {
         val caps = Caps(hasLightSensor = false)
 
-        assertEquals(VisionChallenge.OBJECT_HUNT, resolveChallenge(VisionChallenge.LUMEN, caps))
+        assertEquals(VisionChallenge.ANCHOR, resolveChallenge(VisionChallenge.LUMEN, caps))
     }
 
     @Test
     fun `no front camera falls back for the smile challenge`() {
         val caps = Caps(hasFrontCamera = false)
 
-        assertEquals(VisionChallenge.OBJECT_HUNT, resolveChallenge(VisionChallenge.SMILE, caps))
+        assertEquals(VisionChallenge.ANCHOR, resolveChallenge(VisionChallenge.SMILE, caps))
     }
 
     @Test
@@ -38,7 +38,7 @@ class ChallengeResolutionTest {
         val caps = Caps(hasFrontCamera = false, hasBackCamera = false)
 
         assertEquals(VisionChallenge.LUMEN, resolveChallenge(VisionChallenge.SMILE, caps))
-        assertEquals(VisionChallenge.LUMEN, resolveChallenge(VisionChallenge.OBJECT_HUNT, caps))
+        assertEquals(VisionChallenge.LUMEN, resolveChallenge(VisionChallenge.ANCHOR, caps))
     }
 
     @Test

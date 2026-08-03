@@ -1,7 +1,15 @@
 package com.iris.alarm.ui
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -10,16 +18,23 @@ import androidx.navigation.navArgument
 import com.iris.alarm.ui.dashboard.DashboardScreen
 import com.iris.alarm.ui.editor.AlarmEditorScreen
 import com.iris.alarm.ui.editor.AlarmEditorViewModel
+import com.iris.alarm.ui.editor.AnchorCaptureScreen
+import com.iris.alarm.ui.permissions.PermissionsScreen
 import com.iris.alarm.ui.settings.SettingsScreen
 
 private object Routes {
     const val DASHBOARD = "dashboard"
     const val SETTINGS = "settings"
+    const val PERMISSIONS = "permissions"
     const val EDITOR = "editor"
-    const val EDITOR_WITH_ARG = "$EDITOR?${AlarmEditorViewModel.ARG_ALARM_ID}={${AlarmEditorViewModel.ARG_ALARM_ID}}"
+    const val ANCHOR_CAPTURE = "anchor"
+    const val EDITOR_WITH_ARG =
+        "$EDITOR?${AlarmEditorViewModel.ARG_ALARM_ID}={${AlarmEditorViewModel.ARG_ALARM_ID}}"
 
     fun editor(alarmId: Long) = "$EDITOR?${AlarmEditorViewModel.ARG_ALARM_ID}=$alarmId"
 }
+
+private const val TRANSITION_MILLIS = 260
 
 @Composable
 fun IrisNavHost(modifier: Modifier = Modifier) {
@@ -29,6 +44,22 @@ fun IrisNavHost(modifier: Modifier = Modifier) {
         navController = navController,
         startDestination = Routes.DASHBOARD,
         modifier = modifier,
+        // Screens slide in from the right and fade, so moving deeper into the app
+        // reads as a direction rather than a cut.
+        enterTransition = {
+            slideIntoContainer(
+                AnimatedContentTransitionScope.SlideDirection.Left,
+                tween(TRANSITION_MILLIS),
+            ) + fadeIn(tween(TRANSITION_MILLIS))
+        },
+        exitTransition = { fadeOut(tween(TRANSITION_MILLIS / 2)) },
+        popEnterTransition = { fadeIn(tween(TRANSITION_MILLIS)) },
+        popExitTransition = {
+            slideOutOfContainer(
+                AnimatedContentTransitionScope.SlideDirection.Right,
+                tween(TRANSITION_MILLIS),
+            ) + fadeOut(tween(TRANSITION_MILLIS))
+        },
     ) {
         composable(Routes.DASHBOARD) {
             DashboardScreen(
@@ -41,7 +72,14 @@ fun IrisNavHost(modifier: Modifier = Modifier) {
         }
 
         composable(Routes.SETTINGS) {
-            SettingsScreen(onBack = { navController.popBackStack() })
+            SettingsScreen(
+                onBack = { navController.popBackStack() },
+                onOpenPermissions = { navController.navigate(Routes.PERMISSIONS) },
+            )
+        }
+
+        composable(Routes.PERMISSIONS) {
+            PermissionsScreen(onBack = { navController.popBackStack() })
         }
 
         composable(
@@ -52,8 +90,40 @@ fun IrisNavHost(modifier: Modifier = Modifier) {
                     defaultValue = AlarmEditorViewModel.NEW_ALARM_ID
                 },
             ),
+        ) { entry ->
+            // Scoped to the editor entry so the capture screen writes the anchor
+            // into the same draft the editor is showing.
+            val editorViewModel: AlarmEditorViewModel = hiltViewModel(entry)
+
+            AlarmEditorScreen(
+                onDone = { navController.popBackStack() },
+                onCaptureAnchor = { navController.navigate(Routes.ANCHOR_CAPTURE) },
+                viewModel = editorViewModel,
+            )
+        }
+
+        composable(
+            route = Routes.ANCHOR_CAPTURE,
+            // The camera opening up is a different kind of move, so it scales in
+            // rather than sliding like the rest of the stack.
+            enterTransition = { scaleIn(tween(TRANSITION_MILLIS), 0.92f) + fadeIn() },
+            popExitTransition = { scaleOut(tween(TRANSITION_MILLIS), 0.92f) + fadeOut() },
         ) {
-            AlarmEditorScreen(onDone = { navController.popBackStack() })
+            val editorEntry = remember(navController) {
+                navController.getBackStackEntry(Routes.EDITOR_WITH_ARG)
+            }
+            val editorViewModel: AlarmEditorViewModel = hiltViewModel(editorEntry)
+
+            AnchorCaptureScreen(
+                onCaptured = { captured ->
+                    editorViewModel.setAnchor(
+                        signature = captured.signature.serialise(),
+                        thumbnailPath = captured.thumbnailPath,
+                    )
+                    navController.popBackStack()
+                },
+                onCancel = { navController.popBackStack() },
+            )
         }
     }
 }

@@ -2,6 +2,7 @@ package com.iris.alarm.data.settings
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.iris.alarm.domain.model.IrisSettings
@@ -32,6 +33,7 @@ class SettingsRepositoryImpl @Inject constructor(
                 ?: IrisSettings.DEFAULT_MINIMUM_VOLUME_PERCENT,
             wakeCheckMinutes = prefs[Keys.WAKE_CHECK_MINUTES]
                 ?: IrisSettings.DEFAULT_WAKE_CHECK_MINUTES,
+            use24Hour = prefs[Keys.USE_24_HOUR] ?: true,
         )
     }
 
@@ -57,11 +59,16 @@ class SettingsRepositoryImpl @Inject constructor(
         context.dataStore.edit { it[Keys.WAKE_CHECK_MINUTES] = minutes }
     }
 
+    override suspend fun setUse24Hour(use24Hour: Boolean) {
+        context.dataStore.edit { it[Keys.USE_24_HOUR] = use24Hour }
+    }
+
     private object Keys {
         val DEFAULT_CHALLENGE = stringPreferencesKey("default_challenge")
         val AUTO_SILENCE_MINUTES = intPreferencesKey("auto_silence_minutes")
         val RAMP_SECONDS = intPreferencesKey("volume_ramp_seconds")
         val MINIMUM_VOLUME_PERCENT = intPreferencesKey("minimum_volume_percent")
         val WAKE_CHECK_MINUTES = intPreferencesKey("wake_check_minutes")
+        val USE_24_HOUR = booleanPreferencesKey("use_24_hour")
     }
 }

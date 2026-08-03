@@ -30,6 +30,9 @@ data class IrisSettings(
      * seconds, not that you stayed awake. 0 disables the check.
      */
     val wakeCheckMinutes: Int = DEFAULT_WAKE_CHECK_MINUTES,
+
+    /** False shows 12-hour times with an AM/PM suffix. */
+    val use24Hour: Boolean = true,
 ) {
     val autoSilenceMillis: Long get() = autoSilenceMinutes * 60_000L
 

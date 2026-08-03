@@ -1,24 +1,27 @@
 package com.iris.alarm.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxWidth
 import kotlinx.coroutines.flow.filter
 
 /**
@@ -43,14 +46,23 @@ fun NumberWheel(
     )
     val itemHeightPx = with(LocalDensity.current) { itemHeight.toPx() }
 
+    fun settledIndex(): Int = listState.firstVisibleItemIndex +
+        if (listState.firstVisibleItemScrollOffset > itemHeightPx / 2) 1 else 0
+
     LaunchedEffect(listState, range.first) {
         snapshotFlow { listState.isScrollInProgress }
             .filter { scrolling -> !scrolling }
-            .collect {
-                val settled = listState.firstVisibleItemIndex +
-                    if (listState.firstVisibleItemScrollOffset > itemHeightPx / 2) 1 else 0
-                onValueChange(range.first + settled.coerceIn(0, count - 1))
-            }
+            .collect { onValueChange(range.first + settledIndex().coerceIn(0, count - 1)) }
+    }
+
+    // The editor loads an existing alarm asynchronously, so [value] usually
+    // arrives after the first composition — without this the wheel would sit on
+    // whatever it was initialised with and an edit would silently reset the time.
+    LaunchedEffect(value) {
+        val target = (value - range.first).coerceIn(0, count - 1)
+        if (!listState.isScrollInProgress && settledIndex() != target) {
+            listState.animateScrollToItem(target)
+        }
     }
 
     LazyColumn(
@@ -62,6 +74,18 @@ fun NumberWheel(
     ) {
         items(count) { index ->
             val number = range.first + index
+            val isSelected = number == value
+            // Neighbours stay legible but clearly secondary, and the selection
+            // swells slightly as it lands so the snap is felt as well as seen.
+            val alpha by animateFloatAsState(
+                targetValue = if (isSelected) 1f else 0.22f,
+                label = "wheelAlpha",
+            )
+            val scale by animateFloatAsState(
+                targetValue = if (isSelected) 1f else 0.82f,
+                label = "wheelScale",
+            )
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -72,8 +96,9 @@ fun NumberWheel(
                     text = number.toString().padStart(2, '0'),
                     style = textStyle,
                     color = MaterialTheme.colorScheme.onBackground,
-                    // Neighbours stay legible but clearly secondary to the selection.
-                    modifier = Modifier.alpha(if (number == value) 1f else 0.25f),
+                    modifier = Modifier
+                        .alpha(alpha)
+                        .scale(scale),
                 )
             }
         }

@@ -10,6 +10,6 @@ import com.iris.alarm.domain.model.VisionChallenge
 /** One glyph per challenge, shared by the alarm list and the editor. */
 fun VisionChallenge.challengeIcon(): ImageVector = when (this) {
     VisionChallenge.SMILE -> Icons.Rounded.SentimentSatisfiedAlt
-    VisionChallenge.OBJECT_HUNT -> Icons.Rounded.CenterFocusStrong
+    VisionChallenge.ANCHOR -> Icons.Rounded.CenterFocusStrong
     VisionChallenge.LUMEN -> Icons.Rounded.LightMode
 }

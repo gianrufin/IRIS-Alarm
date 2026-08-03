@@ -1,7 +1,6 @@
 package com.iris.alarm.data.local
 
 import com.iris.alarm.domain.model.Alarm
-import com.iris.alarm.domain.model.HuntTarget
 import com.iris.alarm.domain.model.VisionChallenge
 import java.time.DayOfWeek
 import org.junit.Assert.assertEquals
@@ -17,8 +16,9 @@ class AlarmEntityTest {
             minute = 45,
             label = "Gym",
             repeatDays = setOf(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.SUNDAY),
-            challenge = VisionChallenge.OBJECT_HUNT,
-            huntTarget = HuntTarget.SHOE,
+            challenge = VisionChallenge.ANCHOR,
+            anchorSignature = "123,0.1",
+            anchorThumbnailPath = "/data/anchors/a.png",
             soundUri = "content://media/alarm/7",
             vibrate = false,
             enabled = true,

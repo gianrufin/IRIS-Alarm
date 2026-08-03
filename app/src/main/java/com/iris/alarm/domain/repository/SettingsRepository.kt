@@ -19,4 +19,6 @@ interface SettingsRepository {
     suspend fun setMinimumVolumePercent(percent: Int)
 
     suspend fun setWakeCheckMinutes(minutes: Int)
+
+    suspend fun setUse24Hour(use24Hour: Boolean)
 }

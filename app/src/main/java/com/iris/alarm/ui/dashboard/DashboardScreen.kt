@@ -40,11 +40,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iris.alarm.domain.model.Alarm
 import com.iris.alarm.domain.model.VisionChallenge
 import com.iris.alarm.ui.components.challengeIcon
+import com.iris.alarm.ui.components.formatClock
 import com.iris.alarm.ui.theme.IrisTheme
 import com.iris.alarm.ui.theme.IrisType
 import java.time.DayOfWeek
 import java.time.LocalTime
-import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
 
 @Composable
@@ -89,7 +89,11 @@ private fun DashboardContent(
             .safeDrawingPadding()
             .padding(horizontal = 20.dp),
     ) {
-        Clock(nextAlarmSummary = state.nextAlarmSummary, onOpenSettings = onOpenSettings)
+        Clock(
+            nextAlarmSummary = state.nextAlarmSummary,
+            use24Hour = state.use24Hour,
+            onOpenSettings = onOpenSettings,
+        )
 
         if (!exactAlarmsAllowed) {
             ExactAlarmWarning(onFix = onFixExactAlarms)
@@ -112,6 +116,7 @@ private fun DashboardContent(
                     items(state.alarms, key = { it.id }) { alarm ->
                         AlarmRow(
                             alarm = alarm,
+                            use24Hour = state.use24Hour,
                             onClick = { onEditAlarm(alarm.id) },
                             onToggle = { enabled -> onToggle(alarm, enabled) },
                         )
@@ -142,7 +147,7 @@ private fun DashboardContent(
 }
 
 @Composable
-private fun Clock(nextAlarmSummary: String?, onOpenSettings: () -> Unit) {
+private fun Clock(nextAlarmSummary: String?, use24Hour: Boolean, onOpenSettings: () -> Unit) {
     var now by remember { mutableStateOf(LocalTime.now()) }
 
     LaunchedEffect(Unit) {
@@ -171,12 +176,20 @@ private fun Clock(nextAlarmSummary: String?, onOpenSettings: () -> Unit) {
                     .padding(8.dp),
             )
         }
+        val clock = formatClock(now, use24Hour)
         Text(
-            text = now.format(TIME_FORMAT),
+            text = clock.digits,
             style = IrisType.Clock,
             color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.fillMaxWidth(),
         )
+        clock.suffix?.let { suffix ->
+            Text(
+                text = suffix,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         Text(
             text = nextAlarmSummary ?: "NOTHING ARMED",
             style = MaterialTheme.typography.labelSmall,
@@ -190,7 +203,12 @@ private fun Clock(nextAlarmSummary: String?, onOpenSettings: () -> Unit) {
 }
 
 @Composable
-private fun AlarmRow(alarm: Alarm, onClick: () -> Unit, onToggle: (Boolean) -> Unit) {
+private fun AlarmRow(
+    alarm: Alarm,
+    use24Hour: Boolean,
+    onClick: () -> Unit,
+    onToggle: (Boolean) -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -200,7 +218,7 @@ private fun AlarmRow(alarm: Alarm, onClick: () -> Unit, onToggle: (Boolean) -> U
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = alarm.time.format(TIME_FORMAT),
+                text = formatClock(alarm.time, use24Hour).inline(),
                 style = MaterialTheme.typography.displaySmall,
                 color = if (alarm.enabled) {
                     MaterialTheme.colorScheme.onBackground
@@ -318,8 +336,6 @@ private val WEEKDAYS = setOf(
     DayOfWeek.FRIDAY,
 )
 private val WEEKEND = setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY)
-
-private val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
 @Preview(showBackground = true, backgroundColor = 0xFF000000)
 @Composable

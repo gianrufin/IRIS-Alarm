@@ -23,12 +23,12 @@ fun resolveChallenge(
     val order = when (requested) {
         VisionChallenge.SMILE -> listOf(
             VisionChallenge.SMILE,
-            VisionChallenge.OBJECT_HUNT,
+            VisionChallenge.ANCHOR,
             VisionChallenge.LUMEN,
         )
 
-        VisionChallenge.OBJECT_HUNT -> listOf(
-            VisionChallenge.OBJECT_HUNT,
+        VisionChallenge.ANCHOR -> listOf(
+            VisionChallenge.ANCHOR,
             VisionChallenge.SMILE,
             VisionChallenge.LUMEN,
         )
@@ -37,7 +37,7 @@ fun resolveChallenge(
         // substitute than nothing, but either camera will do.
         VisionChallenge.LUMEN -> listOf(
             VisionChallenge.LUMEN,
-            VisionChallenge.OBJECT_HUNT,
+            VisionChallenge.ANCHOR,
             VisionChallenge.SMILE,
         )
     }
@@ -51,6 +51,6 @@ fun resolveWithoutCamera(capabilities: DeviceCapabilities): VisionChallenge? =
 
 fun DeviceCapabilities.supports(challenge: VisionChallenge): Boolean = when (challenge) {
     VisionChallenge.SMILE -> hasFrontCamera
-    VisionChallenge.OBJECT_HUNT -> hasBackCamera
+    VisionChallenge.ANCHOR -> hasBackCamera
     VisionChallenge.LUMEN -> hasLightSensor
 }

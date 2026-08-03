@@ -5,7 +5,6 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.iris.alarm.data.repository.AlarmRepositoryImpl
 import com.iris.alarm.domain.model.Alarm
-import com.iris.alarm.domain.model.HuntTarget
 import com.iris.alarm.domain.model.VisionChallenge
 import java.time.DayOfWeek
 import kotlinx.coroutines.flow.first
@@ -45,8 +44,8 @@ class AlarmDaoTest {
                 minute = 45,
                 label = "Gym",
                 repeatDays = setOf(DayOfWeek.MONDAY, DayOfWeek.SATURDAY),
-                challenge = VisionChallenge.OBJECT_HUNT,
-                huntTarget = HuntTarget.JACKET,
+                challenge = VisionChallenge.ANCHOR,
+                anchorSignature = "42,0.5",
                 vibrate = false,
             ),
         )
@@ -56,8 +55,8 @@ class AlarmDaoTest {
         assertEquals(6, stored.hour)
         assertEquals("Gym", stored.label)
         assertEquals(setOf(DayOfWeek.MONDAY, DayOfWeek.SATURDAY), stored.repeatDays)
-        assertEquals(VisionChallenge.OBJECT_HUNT, stored.challenge)
-        assertEquals(HuntTarget.JACKET, stored.huntTarget)
+        assertEquals(VisionChallenge.ANCHOR, stored.challenge)
+        assertEquals("42,0.5", stored.anchorSignature)
         assertFalse(stored.vibrate)
     }
 

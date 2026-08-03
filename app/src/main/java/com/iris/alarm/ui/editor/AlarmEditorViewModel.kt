@@ -4,7 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.iris.alarm.domain.model.Alarm
-import com.iris.alarm.domain.model.HuntTarget
+import com.iris.alarm.vision.AnchorCapture
 import com.iris.alarm.domain.model.VisionChallenge
 import com.iris.alarm.domain.repository.AlarmRepository
 import com.iris.alarm.domain.repository.SettingsRepository
@@ -15,7 +15,10 @@ import java.time.DayOfWeek
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 @HiltViewModel
@@ -53,7 +56,12 @@ class AlarmEditorViewModel @Inject constructor(
 
     fun setChallenge(challenge: VisionChallenge) = update { it.copy(challenge = challenge) }
 
-    fun setHuntTarget(target: HuntTarget) = update { it.copy(huntTarget = target) }
+    /** Stores a freshly captured spot, discarding any thumbnail it replaces. */
+    fun setAnchor(signature: String, thumbnailPath: String) {
+        val previous = _draft.value.anchorThumbnailPath
+        if (previous != null && previous != thumbnailPath) AnchorCapture.delete(previous)
+        update { it.copy(anchorSignature = signature, anchorThumbnailPath = thumbnailPath) }
+    }
 
     fun setVibrate(vibrate: Boolean) = update { it.copy(vibrate = vibrate) }
 
@@ -70,9 +78,20 @@ class AlarmEditorViewModel @Inject constructor(
         alarm.copy(repeatDays = days)
     }
 
+    /** Settings are read once so the editor can render times in the user's format. */
+    val use24Hour: StateFlow<Boolean> = settingsRepository.settings
+        .map { it.use24Hour }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    /** An anchor alarm cannot be saved until a spot has been captured. */
+    val canSave: StateFlow<Boolean> = _draft
+        .map { it.isReadyToSchedule }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
     /** Saving always (re)enables the alarm — editing one is intent to use it. */
     fun save(onSaved: () -> Unit) {
         viewModelScope.launch {
+            if (!_draft.value.isReadyToSchedule) return@launch
             saveAlarm(_draft.value.copy(enabled = true))
             onSaved()
         }
@@ -81,6 +100,8 @@ class AlarmEditorViewModel @Inject constructor(
     fun delete(onDeleted: () -> Unit) {
         viewModelScope.launch {
             if (isExisting) deleteAlarm(_draft.value)
+            // The thumbnail is only ever referenced by this alarm.
+            AnchorCapture.delete(_draft.value.anchorThumbnailPath)
             onDeleted()
         }
     }
