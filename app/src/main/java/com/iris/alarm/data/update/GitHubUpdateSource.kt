@@ -165,8 +165,14 @@ class GitHubUpdateSource @Inject constructor() {
     private companion object {
         // The list endpoint, not releases/latest: that one hides pre-releases.
         // per_page keeps the response small; nobody needs a build ten back.
+        //
+        // The repository was renamed from SNAP-WAKE. GitHub redirects the old
+        // path indefinitely and this connection follows redirects, so builds
+        // already on someone's phone keep updating — but a redirect is not
+        // something the update channel should depend on, so new builds ask for
+        // the real name.
         const val RELEASES_URL =
-            "https://api.github.com/repos/gianrufin/SNAP-WAKE/releases?per_page=10"
+            "https://api.github.com/repos/gianrufin/IRIS-Alarm/releases?per_page=10"
         const val TIMEOUT_MILLIS = 20_000
         const val PROGRESS_STEP = 0.01f
         const val NOTES_LIMIT = 500

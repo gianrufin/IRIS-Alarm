@@ -5,7 +5,7 @@ something in the real world — smiling into the front camera, walking back to a
 place you photographed, hunting down an object it names at random, walking
 somewhere bright, or answering arithmetic — evaluated entirely on-device.
 
-**[irisalarm landing page →](https://gianrufin.github.io/SNAP-WAKE/app/)** — what
+**[irisalarm landing page →](https://gianrufin.github.io/IRIS-Alarm/app/)** — what
 it does, every challenge, and the download.
 
 ## Install

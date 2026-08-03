@@ -243,11 +243,11 @@
     </p>
 
     <div class="cta-row">
-      <a class="btn btn-primary" id="cta-download" href="https://github.com/gianrufin/SNAP-WAKE/releases/latest">
+      <a class="btn btn-primary" id="cta-download" href="https://github.com/gianrufin/IRIS-Alarm/releases/latest">
         Download APK
       </a>
       <a class="btn btn-ghost" href="#download">All builds &amp; install steps</a>
-      <a class="btn btn-ghost" href="https://github.com/gianrufin/SNAP-WAKE">Source on GitHub</a>
+      <a class="btn btn-ghost" href="https://github.com/gianrufin/IRIS-Alarm">Source on GitHub</a>
     </div>
     <p class="cta-note" id="cta-note" style="margin-top:16px">Side-loaded APK · Android 8.0+ · no Play Store listing</p>
 
@@ -255,7 +255,7 @@
       <div class="stat"><b>5</b><span>Dismissal challenges</span></div>
       <div class="stat"><b>100%</b><span>On-device — no network</span></div>
       <div class="stat"><b>0</b><span>Accounts, ads, trackers</span></div>
-      <div class="stat"><b id="stat-version">0.8.0</b><span>Current version</span></div>
+      <div class="stat"><b id="stat-version">0.8.1</b><span>Current version</span></div>
     </div>
   </div>
 </header>
@@ -579,7 +579,7 @@
   <div class="wrap">
     <div class="section-head">
       <div class="label amber">Download</div>
-      <h2>Get IRIS Alarm <span id="dl-version">0.8.0</span></h2>
+      <h2>Get IRIS Alarm <span id="dl-version">0.8.1</span></h2>
       <p>
         Requires Android 8.0 (Oreo) or newer. There is no Play Store listing —
         these APKs are downloaded and installed directly.
@@ -593,23 +593,23 @@
         </thead>
         <tbody id="dl-rows">
           <tr>
-            <td><a id="dl-arm64" href="https://github.com/gianrufin/SNAP-WAKE/releases/latest">arm64-v8a</a>
+            <td><a id="dl-arm64" href="https://github.com/gianrufin/IRIS-Alarm/releases/latest">arm64-v8a</a>
               <span class="pick">Recommended</span></td>
             <td>Every phone sold in roughly the last eight years. Pick this one if you're not sure.</td>
             <td id="sz-arm64">~27 MB</td>
           </tr>
           <tr>
-            <td><a id="dl-arm32" href="https://github.com/gianrufin/SNAP-WAKE/releases/latest">armeabi-v7a</a></td>
+            <td><a id="dl-arm32" href="https://github.com/gianrufin/IRIS-Alarm/releases/latest">armeabi-v7a</a></td>
             <td>Older 32-bit devices.</td>
             <td id="sz-arm32">~20 MB</td>
           </tr>
           <tr>
-            <td><a id="dl-x64" href="https://github.com/gianrufin/SNAP-WAKE/releases/latest">x86_64</a></td>
+            <td><a id="dl-x64" href="https://github.com/gianrufin/IRIS-Alarm/releases/latest">x86_64</a></td>
             <td>Emulators and the handful of Intel-based devices.</td>
             <td id="sz-x64">~29 MB</td>
           </tr>
           <tr>
-            <td><a id="dl-univ" href="https://github.com/gianrufin/SNAP-WAKE/releases/latest">universal</a></td>
+            <td><a id="dl-univ" href="https://github.com/gianrufin/IRIS-Alarm/releases/latest">universal</a></td>
             <td>Contains every architecture. Much larger — only worth it if the others refuse to install.</td>
             <td id="sz-univ">~81 MB</td>
           </tr>
@@ -727,11 +727,11 @@
   <div class="wrap foot-row">
     <div>
       IRIS Alarm — free and open source.
-      <a href="https://github.com/gianrufin/SNAP-WAKE">github.com/gianrufin/SNAP-WAKE</a>
+      <a href="https://github.com/gianrufin/IRIS-Alarm">github.com/gianrufin/IRIS-Alarm</a>
     </div>
     <div>
-      <a href="https://github.com/gianrufin/SNAP-WAKE/releases">All releases</a> ·
-      <a href="https://github.com/gianrufin/SNAP-WAKE/issues">Report a bug</a>
+      <a href="https://github.com/gianrufin/IRIS-Alarm/releases">All releases</a> ·
+      <a href="https://github.com/gianrufin/IRIS-Alarm/issues">Report a bug</a>
     </div>
   </div>
 </footer>
@@ -742,7 +742,7 @@
 // fall back to the "latest release" page and the sizes to approximations — so a
 // rate-limited or offline API leaves a working page rather than a broken one.
 (function () {
-  var API = 'https://api.github.com/repos/gianrufin/SNAP-WAKE/releases/latest';
+  var API = 'https://api.github.com/repos/gianrufin/IRIS-Alarm/releases/latest';
 
   function mb(bytes) { return Math.round(bytes / 1048576 * 10) / 10 + ' MB'; }
 
