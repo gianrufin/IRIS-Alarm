@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.iris.alarm.domain.model.Alarm
+import com.iris.alarm.domain.model.QuickPreset
 import com.iris.alarm.vision.AnchorCapture
 import com.iris.alarm.domain.model.VisionChallenge
 import com.iris.alarm.domain.repository.AlarmRepository
@@ -12,6 +13,7 @@ import com.iris.alarm.domain.usecase.DeleteAlarm
 import com.iris.alarm.domain.usecase.SaveAlarm
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.DayOfWeek
+import java.time.LocalTime
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,6 +39,9 @@ class AlarmEditorViewModel @Inject constructor(
 
     val isExisting: Boolean get() = alarmId != NEW_ALARM_ID
 
+    val quickPresets: StateFlow<List<QuickPreset>> = settingsRepository.quickPresets
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), QuickPreset.DEFAULTS)
+
     init {
         viewModelScope.launch {
             if (isExisting) {
@@ -47,6 +52,17 @@ class AlarmEditorViewModel @Inject constructor(
                 val default = settingsRepository.current().defaultChallenge
                 _draft.value = _draft.value.copy(challenge = default)
             }
+        }
+    }
+
+    fun applyQuickPreset(preset: QuickPreset) {
+        val target = LocalTime.now().plusMinutes(preset.durationMinutes.toLong())
+        update {
+            it.copy(
+                hour = target.hour,
+                minute = target.minute,
+                label = preset.label,
+            )
         }
     }
 

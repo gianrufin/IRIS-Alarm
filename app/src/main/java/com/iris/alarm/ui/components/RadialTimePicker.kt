@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -23,7 +24,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -31,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -46,6 +50,17 @@ import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.roundToInt
 import kotlin.math.sin
+
+/**
+ * Shortest circular delta between two angles measured in turns [0..1).
+ * Avoids long wrap-around spins across 0 (12 o'clock / midnight).
+ */
+private fun shortestAngleDelta(fromTurns: Float, toTurns: Float): Float {
+    var delta = (toTurns - fromTurns) % 1.0f
+    if (delta > 0.5f) delta -= 1.0f
+    if (delta < -0.5f) delta += 1.0f
+    return delta
+}
 
 /**
  * A clock-face time picker: minutes on the outer ring, hours on the inner one,
@@ -67,11 +82,6 @@ fun RadialTimePicker(
 ) {
     val onChange by rememberUpdatedState(onTimeChange)
 
-    // Read live inside the gesture handlers. `pointerInput` is not keyed on the
-    // time — re-installing it mid-drag would drop the gesture — so the block
-    // keeps running with the closure it was created with. Capturing `hour` and
-    // `minute` directly meant a minute drag reported the hour as it was when the
-    // handler was installed, which quietly undid any hour the user had just set.
     val currentHour by rememberUpdatedState(hour)
     val currentMinute by rememberUpdatedState(minute)
 
@@ -82,6 +92,24 @@ fun RadialTimePicker(
 
     val hourCount = if (use24Hour) 24 else 12
     val displayHour = if (use24Hour) hour else to12Hour(hour)
+    val targetHourTurns = (if (use24Hour) hour else displayHour % 12) / hourCount.toFloat()
+    val targetMinuteTurns = minute / 60f
+
+    // Continuous angles that track across wrap-arounds without reverse spinning.
+    var continuousHourTurns by remember { mutableFloatStateOf(targetHourTurns) }
+    var continuousMinuteTurns by remember { mutableFloatStateOf(targetMinuteTurns) }
+
+    LaunchedEffect(targetHourTurns, activeRing) {
+        if (activeRing != Ring.HOUR) {
+            continuousHourTurns += shortestAngleDelta(continuousHourTurns, targetHourTurns)
+        }
+    }
+
+    LaunchedEffect(targetMinuteTurns, activeRing) {
+        if (activeRing != Ring.MINUTE) {
+            continuousMinuteTurns += shortestAngleDelta(continuousMinuteTurns, targetMinuteTurns)
+        }
+    }
 
     BoxWithConstraints(
         modifier = modifier
@@ -97,10 +125,19 @@ fun RadialTimePicker(
         fun turnsFrom(position: Offset): Float =
             RadialMath.turns(position.x - centre.x, position.y - centre.y)
 
-        fun apply(ring: Ring, position: Offset) {
+        fun apply(ring: Ring, position: Offset, isFinal: Boolean = false) {
             val turns = turnsFrom(position)
             when (ring) {
-                Ring.MINUTE -> onChange(currentHour, RadialMath.toMinute(turns))
+                Ring.MINUTE -> {
+                    val newMinute = RadialMath.toMinute(turns)
+                    if (isFinal) {
+                        val quantized = newMinute / 60f
+                        continuousMinuteTurns += shortestAngleDelta(continuousMinuteTurns, quantized)
+                    } else {
+                        continuousMinuteTurns += shortestAngleDelta(continuousMinuteTurns, turns)
+                    }
+                    onChange(currentHour, newMinute)
+                }
                 Ring.HOUR -> {
                     val newHour = if (use24Hour) {
                         RadialMath.toHour24(turns)
@@ -108,6 +145,12 @@ fun RadialTimePicker(
                         // The ring reads 12 at the top, then 1..11 clockwise, and
                         // the meridiem the user already chose is preserved.
                         to24Hour(RadialMath.toHour12(turns), isPm(currentHour))
+                    }
+                    if (isFinal) {
+                        val quantized = (if (use24Hour) newHour else (to12Hour(newHour) % 12)) / hourCount.toFloat()
+                        continuousHourTurns += shortestAngleDelta(continuousHourTurns, quantized)
+                    } else {
+                        continuousHourTurns += shortestAngleDelta(continuousHourTurns, turns)
                     }
                     onChange(newHour, currentMinute)
                 }
@@ -131,23 +174,46 @@ fun RadialTimePicker(
                 .fillMaxSize()
                 .pointerInput(hourCount, use24Hour, diameter) {
                     detectTapGestures { position ->
-                        ringAt(position)?.let { ring -> apply(ring, position) }
+                        ringAt(position)?.let { ring -> apply(ring, position, isFinal = true) }
                     }
                 }
                 .pointerInput(hourCount, use24Hour, diameter) {
                     detectDragGestures(
-                        onDragStart = { position -> activeRing = ringAt(position) },
-                        onDragEnd = { activeRing = null },
-                        onDragCancel = { activeRing = null },
+                        onDragStart = { position ->
+                            activeRing = ringAt(position)
+                            activeRing?.let { ring -> apply(ring, position, isFinal = false) }
+                        },
+                        onDragEnd = {
+                            val ring = activeRing
+                            activeRing = null
+                            if (ring == Ring.HOUR) {
+                                val quantized = (if (use24Hour) currentHour else (to12Hour(currentHour) % 12)) / hourCount.toFloat()
+                                continuousHourTurns += shortestAngleDelta(continuousHourTurns, quantized)
+                            } else if (ring == Ring.MINUTE) {
+                                val quantized = currentMinute / 60f
+                                continuousMinuteTurns += shortestAngleDelta(continuousMinuteTurns, quantized)
+                            }
+                        },
+                        onDragCancel = {
+                            val ring = activeRing
+                            activeRing = null
+                            if (ring == Ring.HOUR) {
+                                val quantized = (if (use24Hour) currentHour else (to12Hour(currentHour) % 12)) / hourCount.toFloat()
+                                continuousHourTurns += shortestAngleDelta(continuousHourTurns, quantized)
+                            } else if (ring == Ring.MINUTE) {
+                                val quantized = currentMinute / 60f
+                                continuousMinuteTurns += shortestAngleDelta(continuousMinuteTurns, quantized)
+                            }
+                        },
                     ) { change, _ ->
-                        activeRing?.let { ring -> apply(ring, change.position) }
+                        activeRing?.let { ring -> apply(ring, change.position, isFinal = false) }
                         change.consume()
                     }
                 },
         ) {
             Dial(
-                minuteTurns = minute / 60f,
-                hourTurns = (if (use24Hour) hour else displayHour % 12) / hourCount.toFloat(),
+                minuteTurns = continuousMinuteTurns,
+                hourTurns = continuousHourTurns,
                 activeRing = activeRing,
             )
 
@@ -186,11 +252,12 @@ private enum class Ring { HOUR, MINUTE }
 @Composable
 private fun Dial(minuteTurns: Float, hourTurns: Float, activeRing: Ring?) {
     val track = MaterialTheme.colorScheme.outline
+    val surfaceColor = MaterialTheme.colorScheme.surface
     val hourColour by animateColorAsState(
         targetValue = if (activeRing == Ring.HOUR) {
             MaterialTheme.colorScheme.primary
         } else {
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
         },
         label = "hourHand",
     )
@@ -203,15 +270,23 @@ private fun Dial(minuteTurns: Float, hourTurns: Float, activeRing: Ring?) {
         label = "minuteHand",
     )
 
-    // Springs rather than tweens: a knob you let go of should settle, not glide.
+    // Smooth fluid springs: high responsiveness when dragging, silky settling when released
     val animatedMinute by animateFloatAsState(
         targetValue = minuteTurns,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        animationSpec = if (activeRing == Ring.MINUTE) {
+            spring(dampingRatio = 0.98f, stiffness = Spring.StiffnessHigh)
+        } else {
+            spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
+        },
         label = "minuteTurns",
     )
     val animatedHour by animateFloatAsState(
         targetValue = hourTurns,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        animationSpec = if (activeRing == Ring.HOUR) {
+            spring(dampingRatio = 0.98f, stiffness = Spring.StiffnessHigh)
+        } else {
+            spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
+        },
         label = "hourTurns",
     )
 
@@ -252,25 +327,38 @@ private fun Dial(minuteTurns: Float, hourTurns: Float, activeRing: Ring?) {
             )
         }
 
+        val hourHandTip = handEnd(animatedHour, hourRadius)
+        val minuteHandTip = handEnd(animatedMinute, minuteRadius)
+
         // Hands, drawn from the centre out to the selected position.
         drawLine(
             color = minuteColour,
             start = centre,
-            end = handEnd(animatedMinute, minuteRadius),
+            end = minuteHandTip,
             strokeWidth = 2.dp.toPx(),
             cap = StrokeCap.Round,
         )
         drawLine(
             color = hourColour,
             start = centre,
-            end = handEnd(animatedHour, hourRadius),
+            end = hourHandTip,
             strokeWidth = 4.dp.toPx(),
             cap = StrokeCap.Round,
         )
 
+        // Subtle glow around hour knob when active
+        if (activeRing == Ring.HOUR) {
+            drawCircle(
+                color = hourColour.copy(alpha = 0.22f),
+                radius = 18.dp.toPx(),
+                center = hourHandTip,
+            )
+        }
+
         // Knobs at the ends, which is what the finger is really chasing.
-        drawCircle(color = minuteColour, radius = 7.dp.toPx(), center = handEnd(animatedMinute, minuteRadius))
-        drawCircle(color = hourColour, radius = 11.dp.toPx(), center = handEnd(animatedHour, hourRadius))
+        drawCircle(color = minuteColour, radius = 7.dp.toPx(), center = minuteHandTip)
+        drawCircle(color = hourColour, radius = 11.dp.toPx(), center = hourHandTip)
+        drawCircle(color = surfaceColor, radius = 3.5.dp.toPx(), center = hourHandTip)
         drawCircle(color = hourColour, radius = 3.dp.toPx(), center = centre)
     }
 }
@@ -291,33 +379,61 @@ private fun RingLabels(
                 // A minute between labels still lights the nearest one.
                 (labelEvery > 1 && selected in index until index + labelEvery)
 
-            Text(
+            RingLabelItem(
                 text = format(index),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                color = if (isSelected) {
-                    MaterialTheme.colorScheme.onBackground
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
-                },
-                modifier = Modifier.layout { measurable, constraints ->
-                    val placeable = measurable.measure(constraints)
-                    val diameter = minOf(constraints.maxWidth, constraints.maxHeight)
-                    val radius = diameter * radiusFraction
-                    val radians = (turns * 2f * PI - PI / 2f).toFloat()
-
-                    layout(constraints.maxWidth, constraints.maxHeight) {
-                        placeable.place(
-                            x = (constraints.maxWidth / 2f + cos(radians) * radius -
-                                placeable.width / 2f).roundToInt(),
-                            y = (constraints.maxHeight / 2f + sin(radians) * radius -
-                                placeable.height / 2f).roundToInt(),
-                        )
-                    }
-                },
+                isSelected = isSelected,
+                turns = turns,
+                radiusFraction = radiusFraction,
             )
         }
     }
+}
+
+@Composable
+private fun RingLabelItem(
+    text: String,
+    isSelected: Boolean,
+    turns: Float,
+    radiusFraction: Float,
+) {
+    val scale by animateFloatAsState(
+        targetValue = if (isSelected) 1.22f else 1.0f,
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium),
+        label = "labelScale",
+    )
+    val color by animateColorAsState(
+        targetValue = if (isSelected) {
+            MaterialTheme.colorScheme.onBackground
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+        },
+        animationSpec = tween(140),
+        label = "labelColor",
+    )
+
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+        color = color,
+        modifier = Modifier
+            .scale(scale)
+            .layout { measurable, constraints ->
+                val placeable = measurable.measure(constraints)
+                val diameter = minOf(constraints.maxWidth, constraints.maxHeight)
+                val radius = diameter * radiusFraction
+                val radians = (turns * 2f * PI - PI / 2f).toFloat()
+
+                layout(constraints.maxWidth, constraints.maxHeight) {
+                    placeable.place(
+                        x = (constraints.maxWidth / 2f + cos(radians) * radius -
+                            placeable.width / 2f).roundToInt(),
+                        y = (constraints.maxHeight / 2f + sin(radians) * radius -
+                            placeable.height / 2f).roundToInt(),
+                    )
+                }
+            },
+    )
 }
 
 @Composable

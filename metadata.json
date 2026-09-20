@@ -1,0 +1,6 @@
+{
+  "name": "IRIS",
+  "description": "A native Android alarm clock that replaces the snooze button with camera and sensor challenges.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

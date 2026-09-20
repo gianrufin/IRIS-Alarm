@@ -4,20 +4,25 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.iris.alarm.alarm.AlarmScheduler
 import com.iris.alarm.domain.model.Alarm
-import com.iris.alarm.domain.usecase.DeleteAlarm
-import com.iris.alarm.domain.usecase.ObserveAlarms
+import com.iris.alarm.domain.model.QuickPreset
 import com.iris.alarm.domain.repository.SettingsRepository
 import com.iris.alarm.domain.repository.WakeCheckRepository
+import com.iris.alarm.domain.usecase.DeleteAlarm
+import com.iris.alarm.domain.usecase.ObserveAlarms
+import com.iris.alarm.domain.usecase.SaveAlarm
 import com.iris.alarm.domain.usecase.SetAlarmEnabled
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Duration
-import java.time.LocalDateTime
-import java.time.ZoneId
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -29,28 +34,37 @@ data class DashboardUiState(
     /** "WAKE CHECK IN 5 MIN", or null when no check is pending. */
     val wakeCheckSummary: String? = null,
     val use24Hour: Boolean = true,
+    val quickPresets: List<QuickPreset> = emptyList(),
+    val quickSetFeedback: String? = null,
 )
 
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     observeAlarms: ObserveAlarms,
+    private val saveAlarm: SaveAlarm,
     private val setAlarmEnabled: SetAlarmEnabled,
     private val deleteAlarm: DeleteAlarm,
     private val wakeCheckRepository: WakeCheckRepository,
-    settingsRepository: SettingsRepository,
+    private val settingsRepository: SettingsRepository,
     private val scheduler: AlarmScheduler,
 ) : ViewModel() {
+
+    private val _quickSetFeedback = MutableStateFlow<String?>(null)
 
     val uiState: StateFlow<DashboardUiState> = combine(
         observeAlarms(),
         wakeCheckRepository.pendingAt,
         settingsRepository.settings,
-    ) { alarms, wakeCheckAt, settings ->
+        settingsRepository.quickPresets,
+        _quickSetFeedback,
+    ) { alarms, wakeCheckAt, settings, presets, feedback ->
         DashboardUiState(
             alarms = alarms,
             nextAlarmSummary = summariseNext(alarms),
             wakeCheckSummary = summariseWakeCheck(wakeCheckAt),
             use24Hour = settings.use24Hour,
+            quickPresets = presets,
+            quickSetFeedback = feedback,
         )
     }
         .stateIn(
@@ -58,6 +72,41 @@ class DashboardViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = DashboardUiState(),
         )
+
+    fun quickSetAlarm(preset: QuickPreset) {
+        viewModelScope.launch {
+            val now = LocalTime.now()
+            val target = now.plusMinutes(preset.durationMinutes.toLong())
+            val settings = settingsRepository.current()
+            val alarm = Alarm(
+                hour = target.hour,
+                minute = target.minute,
+                label = preset.label,
+                enabled = true,
+                challenge = settings.defaultChallenge,
+            )
+            saveAlarm(alarm)
+            val pattern = if (settings.use24Hour) "HH:mm" else "h:mm a"
+            val formattedTime = target.format(DateTimeFormatter.ofPattern(pattern))
+            _quickSetFeedback.value = "ARMED FOR $formattedTime (${preset.label.uppercase()})"
+        }
+    }
+
+    fun clearQuickSetFeedback() {
+        _quickSetFeedback.value = null
+    }
+
+    fun saveQuickPreset(preset: QuickPreset) {
+        viewModelScope.launch {
+            settingsRepository.saveQuickPreset(preset)
+        }
+    }
+
+    fun deleteQuickPreset(id: String) {
+        viewModelScope.launch {
+            settingsRepository.deleteQuickPreset(id)
+        }
+    }
 
     /** False when the OS has revoked exact alarms and the UI should say so. */
     fun canScheduleExact(): Boolean = scheduler.canScheduleExact

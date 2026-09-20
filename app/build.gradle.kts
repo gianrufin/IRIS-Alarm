@@ -11,6 +11,12 @@ android {
     compileSdk = 35
 
     signingConfigs {
+        create("debugConfig") {
+            storeFile = file("${rootDir}/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
         // A stable identity for side-loaded builds. Android refuses to install an
         // update signed by a different key than the installed app, so the in-app
         // updater only works if every release is signed with this one — which is
@@ -39,6 +45,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debugConfig")
+        }
         release {
             signingConfig = signingConfigs.getByName("sideload")
             isMinifyEnabled = true
@@ -63,18 +72,6 @@ android {
         compose = true
         // The updater compares the running version against the latest release.
         buildConfig = true
-    }
-
-    // ML Kit's native libraries are ~60 MB of the APK across four ABIs. Splitting
-    // by ABI cuts a real device's download to roughly a third; the universal APK
-    // is kept for side-loading onto an unknown device.
-    splits {
-        abi {
-            isEnable = true
-            reset()
-            include("arm64-v8a", "armeabi-v7a", "x86_64")
-            isUniversalApk = true
-        }
     }
 
     // MigrationTestHelper reads the exported schemas from the test APK's assets.

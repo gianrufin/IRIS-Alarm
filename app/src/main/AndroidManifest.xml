@@ -92,8 +92,11 @@
             android:name=".ui.challenge.AlarmChallengeActivity"
             android:excludeFromRecents="true"
             android:exported="false"
+            android:immersive="true"
             android:launchMode="singleInstance"
+            android:noHistory="false"
             android:showOnLockScreen="true"
+            android:showWhenLocked="true"
             android:taskAffinity=".challenge"
             android:theme="@style/Theme.Iris"
             android:turnScreenOn="true" />

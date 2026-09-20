@@ -7,15 +7,19 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.iris.alarm.domain.model.IrisSettings
 import com.iris.alarm.domain.model.MathDifficulty
+import com.iris.alarm.domain.model.QuickPreset
 import com.iris.alarm.domain.model.ThemeMode
 import com.iris.alarm.domain.model.VisionChallenge
 import com.iris.alarm.domain.repository.SettingsRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.json.JSONArray
+import org.json.JSONObject
 
 @Singleton
 class SettingsRepositoryImpl @Inject constructor(
@@ -91,8 +95,62 @@ class SettingsRepositoryImpl @Inject constructor(
         context.dataStore.edit { it[Keys.MATH_PROBLEM_COUNT] = count }
     }
 
+    override val quickPresets: Flow<List<QuickPreset>> = context.dataStore.data.map { prefs ->
+        val json = prefs[Keys.QUICK_PRESETS]
+        if (json.isNullOrBlank()) {
+            QuickPreset.DEFAULTS
+        } else {
+            deserializePresets(json)
+        }
+    }
+
+    override suspend fun getQuickPresets(): List<QuickPreset> = quickPresets.first()
+
+    override suspend fun saveQuickPreset(preset: QuickPreset) {
+        val current = getQuickPresets().toMutableList()
+        val index = current.indexOfFirst { it.id == preset.id }
+        if (index >= 0) {
+            current[index] = preset
+        } else {
+            current.add(preset)
+        }
+        context.dataStore.edit { it[Keys.QUICK_PRESETS] = serializePresets(current) }
+    }
+
+    override suspend fun deleteQuickPreset(id: String) {
+        val current = getQuickPresets().filterNot { it.id == id }
+        context.dataStore.edit { it[Keys.QUICK_PRESETS] = serializePresets(current) }
+    }
+
     override suspend fun setOnboardingComplete(complete: Boolean) {
         context.dataStore.edit { it[Keys.ONBOARDING_COMPLETE] = complete }
+    }
+
+    private fun serializePresets(presets: List<QuickPreset>): String {
+        val array = JSONArray()
+        for (preset in presets) {
+            val obj = JSONObject().apply {
+                put("id", preset.id)
+                put("label", preset.label)
+                put("durationMinutes", preset.durationMinutes)
+            }
+            array.put(obj)
+        }
+        return array.toString()
+    }
+
+    private fun deserializePresets(json: String): List<QuickPreset> {
+        return runCatching {
+            val array = JSONArray(json)
+            (0 until array.length()).map { i ->
+                val obj = array.getJSONObject(i)
+                QuickPreset(
+                    id = obj.optString("id", UUID.randomUUID().toString()),
+                    label = obj.optString("label", ""),
+                    durationMinutes = obj.optInt("durationMinutes", 15),
+                )
+            }
+        }.getOrElse { QuickPreset.DEFAULTS }
     }
 
     private object Keys {
@@ -107,5 +165,6 @@ class SettingsRepositoryImpl @Inject constructor(
         val MATH_DIFFICULTY = stringPreferencesKey("math_difficulty")
         val MATH_PROBLEM_COUNT = intPreferencesKey("math_problem_count")
         val ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
+        val QUICK_PRESETS = stringPreferencesKey("quick_presets")
     }
 }

@@ -29,10 +29,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -60,7 +62,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iris.alarm.domain.model.Alarm
+import com.iris.alarm.domain.model.QuickPreset
 import com.iris.alarm.domain.model.VisionChallenge
+import com.iris.alarm.ui.components.QuickPresetDialog
 import com.iris.alarm.ui.components.challengeIcon
 import com.iris.alarm.ui.components.formatClock
 import com.iris.alarm.ui.theme.IrisTheme
@@ -79,13 +83,38 @@ fun DashboardScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-    // Selection lives here rather than in the ViewModel: it is screen state that
-    // should not survive leaving the screen, and it is keyed by id so an alarm
-    // deleted from elsewhere cannot leave a phantom selected.
     var selected by rememberSaveable { mutableStateOf(emptySet<Long>()) }
     val selecting = selected.isNotEmpty()
 
-    // Drop ids that no longer exist, so "3 SELECTED" can never outlive its rows.
+    var editingPreset by remember { mutableStateOf<QuickPreset?>(null) }
+    var isAddingPreset by remember { mutableStateOf(false) }
+
+    if (isAddingPreset) {
+        QuickPresetDialog(
+            preset = null,
+            onDismiss = { isAddingPreset = false },
+            onSave = { preset ->
+                viewModel.saveQuickPreset(preset)
+                isAddingPreset = false
+            },
+        )
+    }
+
+    editingPreset?.let { presetToEdit ->
+        QuickPresetDialog(
+            preset = presetToEdit,
+            onDismiss = { editingPreset = null },
+            onSave = { preset ->
+                viewModel.saveQuickPreset(preset)
+                editingPreset = null
+            },
+            onDelete = { id ->
+                viewModel.deleteQuickPreset(id)
+                editingPreset = null
+            },
+        )
+    }
+
     LaunchedEffect(state.alarms) {
         if (selected.isEmpty()) return@LaunchedEffect
         val living = state.alarms.mapTo(mutableSetOf()) { it.id }
@@ -113,6 +142,10 @@ fun DashboardScreen(
             viewModel.delete(state.alarms.filter { it.id in selected })
             selected = emptySet()
         },
+        onQuickSet = viewModel::quickSetAlarm,
+        onClearFeedback = viewModel::clearQuickSetFeedback,
+        onEditPreset = { editingPreset = it },
+        onAddPreset = { isAddingPreset = true },
         modifier = modifier,
     )
 }
@@ -132,6 +165,10 @@ private fun DashboardContent(
     onSelectAll: () -> Unit,
     onClearSelection: () -> Unit,
     onDeleteSelected: () -> Unit,
+    onQuickSet: (QuickPreset) -> Unit,
+    onClearFeedback: () -> Unit,
+    onEditPreset: (QuickPreset) -> Unit,
+    onAddPreset: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val selecting = selected.isNotEmpty()
@@ -154,6 +191,45 @@ private fun DashboardContent(
 
         state.wakeCheckSummary?.let { summary ->
             WakeCheckBanner(summary = summary, onConfirmAwake = onConfirmAwake)
+        }
+
+        state.quickSetFeedback?.let { feedback ->
+            LaunchedEffect(feedback) {
+                delay(3500)
+                onClearFeedback()
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.primaryContainer)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(18.dp),
+                )
+                Text(
+                    text = feedback,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+
+        if (!selecting && state.quickPresets.isNotEmpty()) {
+            QuickSetRow(
+                presets = state.quickPresets,
+                onQuickSet = onQuickSet,
+                onEditPreset = onEditPreset,
+                onAddPreset = onAddPreset,
+            )
         }
 
         Box(modifier = Modifier.weight(1f)) {
@@ -361,6 +437,17 @@ private fun AlarmRow(
         }
 
         Column(modifier = Modifier.weight(1f)) {
+            if (alarm.label.isNotBlank()) {
+                Text(
+                    text = alarm.label,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (alarm.enabled) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
             Text(
                 text = formatClock(alarm.time, use24Hour).inline(),
                 style = MaterialTheme.typography.displaySmall,
@@ -506,6 +593,101 @@ private fun ExactAlarmWarning(onFix: () -> Unit) {
     }
 }
 
+@Composable
+private fun QuickSetRow(
+    presets: List<QuickPreset>,
+    onQuickSet: (QuickPreset) -> Unit,
+    onEditPreset: (QuickPreset) -> Unit,
+    onAddPreset: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Bolt,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(14.dp),
+                )
+                Text(
+                    text = "QUICK SET",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Text(
+                text = "+ CUSTOM",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(onClick = onAddPreset)
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+            )
+        }
+
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            items(presets, key = { it.id }) { preset ->
+                QuickPresetChip(
+                    preset = preset,
+                    onClick = { onQuickSet(preset) },
+                    onLongClick = { onEditPreset(preset) },
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun QuickPresetChip(
+    preset: QuickPreset,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+            )
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            text = preset.label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = "+${preset.formattedDuration}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+        )
+    }
+}
+
 /** "EVERY DAY", "MON WED FRI", or "ONCE" for a one-shot. */
 internal fun Alarm.repeatSummary(): String = when {
     repeatDays.isEmpty() -> "ONCE"
@@ -550,6 +732,7 @@ private fun DashboardPreview() {
                 ),
                 nextAlarmSummary = "RINGS IN 7H 12M",
                 wakeCheckSummary = "WAKE CHECK IN 5 MIN",
+                quickPresets = QuickPreset.DEFAULTS,
             ),
             exactAlarmsAllowed = true,
             selected = setOf(1L),
@@ -563,6 +746,10 @@ private fun DashboardPreview() {
             onSelectAll = {},
             onClearSelection = {},
             onDeleteSelected = {},
+            onQuickSet = {},
+            onClearFeedback = {},
+            onEditPreset = {},
+            onAddPreset = {},
         )
     }
 }

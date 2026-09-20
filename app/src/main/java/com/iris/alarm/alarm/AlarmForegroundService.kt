@@ -34,6 +34,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -64,6 +65,7 @@ class AlarmForegroundService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var autoSilenceJob: Job? = null
     private var rampJob: Job? = null
+    private var enforcementJob: Job? = null
 
     /** Alarm-stream volume to put back when the alarm stops, if we raised it. */
     private var restoreVolumeTo: Int? = null
@@ -114,6 +116,7 @@ class AlarmForegroundService : Service() {
 
         acquireWakeLock()
         launchAlarmScreen(alarmId)
+        startEnforcement(alarmId)
         // Whatever is ringing now supersedes any "snoozed until" note.
         AlarmNotifications.clearSnoozed(this)
 
@@ -179,9 +182,36 @@ class AlarmForegroundService : Service() {
      */
     private fun launchAlarmScreen(alarmId: Long) {
         runCatching {
-            startActivity(AlarmChallengeActivity.intent(this, alarmId))
+            val intent = AlarmChallengeActivity.intent(this, alarmId).apply {
+                addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP,
+                )
+            }
+            startActivity(intent)
         }.onFailure {
             Log.w(TAG, "Could not open the alarm screen; falling back to the notification", it)
+        }
+    }
+
+    /**
+     * Actively enforces the alarm challenge overlay to stay in the foreground.
+     * If the user attempts to bypass by switching apps or opening settings,
+     * this watchdog reasserts the challenge overlay until finished.
+     */
+    private fun startEnforcement(alarmId: Long) {
+        enforcementJob?.cancel()
+        enforcementJob = scope.launch {
+            while (isActive && _ringingAlarmId.value != AlarmContract.NO_ALARM_ID) {
+                delay(800)
+                if (!AlarmChallengeActivity.isActivityActive &&
+                    _ringingAlarmId.value != AlarmContract.NO_ALARM_ID
+                ) {
+                    Log.d(TAG, "Challenge overlay lost foreground; reasserting overlay")
+                    launchAlarmScreen(alarmId)
+                }
+            }
         }
     }
 
@@ -408,6 +438,8 @@ class AlarmForegroundService : Service() {
     private fun silenceOutput() {
         autoSilenceJob?.cancel()
         autoSilenceJob = null
+        enforcementJob?.cancel()
+        enforcementJob = null
         rampJob?.cancel()
         rampJob = null
 

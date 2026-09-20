@@ -2,6 +2,7 @@ package com.iris.alarm.domain.repository
 
 import com.iris.alarm.domain.model.IrisSettings
 import com.iris.alarm.domain.model.MathDifficulty
+import com.iris.alarm.domain.model.QuickPreset
 import com.iris.alarm.domain.model.ThemeMode
 import com.iris.alarm.domain.model.VisionChallenge
 import kotlinx.coroutines.flow.Flow
@@ -11,6 +12,15 @@ interface SettingsRepository {
 
     /** One-shot read for callers that cannot collect, such as the alarm service. */
     suspend fun current(): IrisSettings
+
+    /** Common alarm duration presets for 1-tap quick setting. */
+    val quickPresets: Flow<List<QuickPreset>>
+
+    suspend fun getQuickPresets(): List<QuickPreset>
+
+    suspend fun saveQuickPreset(preset: QuickPreset)
+
+    suspend fun deleteQuickPreset(id: String)
 
     suspend fun setDefaultChallenge(challenge: VisionChallenge)
 

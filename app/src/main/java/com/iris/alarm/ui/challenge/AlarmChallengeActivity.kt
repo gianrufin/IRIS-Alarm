@@ -9,6 +9,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.addCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
@@ -30,9 +33,9 @@ import dagger.hilt.android.AndroidEntryPoint
  * Full-screen challenge surface launched over the lock screen by the ringing
  * notification's full-screen intent.
  *
- * The vision/sensor detectors land here in the next step; for now it renders the
- * prompt for the ringing alarm and routes a completed challenge back to
- * [AlarmForegroundService].
+ * Designed to be strictly unclosable while ringing: back button, home gestures,
+ * recent tasks switching, and notification panel pulldowns are all trapped and
+ * blocked until the vision challenge is solved or snooze is activated.
  */
 @AndroidEntryPoint
 class AlarmChallengeActivity : ComponentActivity() {
@@ -44,9 +47,11 @@ class AlarmChallengeActivity : ComponentActivity() {
 
         val alarmId = intent.getLongExtra(AlarmContract.EXTRA_ALARM_ID, AlarmContract.NO_ALARM_ID)
 
-        // Backing out would leave the alarm ringing with no way to reach the
-        // challenge; the only exits are solving it or the auto-silence timeout.
-        onBackPressedDispatcher.addCallback(this) { moveTaskToBack(true) }
+        // Backing out is strictly forbidden: the only exits are solving the challenge,
+        // snoozing, or auto-silence timeout.
+        onBackPressedDispatcher.addCallback(this) {
+            // Intentionally no-op to consume back gesture and prevent leaving
+        }
 
         setContent {
             // The ringing screen is always dark, whatever the app theme: this is
@@ -102,36 +107,118 @@ class AlarmChallengeActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        isActivityActive = true
+        hideSystemBars()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        isActivityActive = false
+        if (isAlarmStillRinging() && !isFinishing) {
+            relaunchChallenge()
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (isAlarmStillRinging() && !isFinishing) {
+            relaunchChallenge()
+        }
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        // Prevents the user from jumping to home or switching apps while alarm is ringing
+        if (isAlarmStillRinging()) {
+            relaunchChallenge()
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (!hasFocus && isAlarmStillRinging()) {
+            // When user attempts to pull down the notification shade or status bar
+            @Suppress("DEPRECATION")
+            val closeDialogs = Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS)
+            sendBroadcast(closeDialogs)
+            hideSystemBars()
+            window.decorView.postDelayed({
+                if (!hasWindowFocus() && isAlarmStillRinging() && !isFinishing) {
+                    relaunchChallenge()
+                }
+            }, 100)
+        } else if (hasFocus) {
+            hideSystemBars()
+        }
+    }
+
+    private fun isAlarmStillRinging(): Boolean =
+        AlarmForegroundService.ringingAlarmId.value != AlarmContract.NO_ALARM_ID
+
+    private fun relaunchChallenge() {
+        val currentId = AlarmForegroundService.ringingAlarmId.value
+        val reopenIntent = intent(this, currentId).apply {
+            addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP,
+            )
+        }
+        runCatching { startActivity(reopenIntent) }
+    }
+
     private fun dismiss() {
+        isActivityActive = false
         AlarmForegroundService.dismiss(this)
         finish()
     }
 
     private fun snooze() {
+        isActivityActive = false
         AlarmForegroundService.snooze(this)
         finish()
     }
 
     /**
-     * Shows over the keyguard rather than dismissing it. Asking to dismiss puts
-     * the PIN prompt in front of the alarm, so the first thing a sleeping person
-     * has to do is unlock the phone — the challenge is the point, not the lock.
+     * Shows over the keyguard and locks the screen in immersive full-screen mode.
      */
     private fun showOverLockScreen() {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        hideSystemBars()
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
-        } else {
-            @Suppress("DEPRECATION")
-            window.addFlags(
-                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON,
-            )
         }
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        @Suppress("DEPRECATION")
+        window.addFlags(
+            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+                WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
+                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+                WindowManager.LayoutParams.FLAG_FULLSCREEN,
+        )
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+    }
+
+    private fun hideSystemBars() {
+        val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+        insetsController.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        insetsController.hide(WindowInsetsCompat.Type.systemBars())
     }
 
     companion object {
+        @Volatile
+        var isActivityActive: Boolean = false
+            private set
+
         fun intent(context: Context, alarmId: Long): Intent =
             Intent(context, AlarmChallengeActivity::class.java).apply {
                 putExtra(AlarmContract.EXTRA_ALARM_ID, alarmId)
@@ -139,3 +226,4 @@ class AlarmChallengeActivity : ComponentActivity() {
             }
     }
 }
+

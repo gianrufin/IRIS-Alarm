@@ -29,6 +29,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -53,12 +55,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.IntentCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iris.alarm.domain.model.IrisSettings
+import com.iris.alarm.domain.model.QuickPreset
 import com.iris.alarm.domain.model.VisionChallenge
 import com.iris.alarm.ui.challenge.ChallengeScreen
 import com.iris.alarm.ui.components.RadialTimePicker
@@ -85,6 +89,7 @@ fun AlarmEditorScreen(
     val draft by viewModel.draft.collectAsStateWithLifecycle()
     val use24Hour by viewModel.use24Hour.collectAsStateWithLifecycle()
     val canSave by viewModel.canSave.collectAsStateWithLifecycle()
+    val quickPresets by viewModel.quickPresets.collectAsStateWithLifecycle()
 
     // Editing jumps straight to the full set of steps rather than walking an
     // existing alarm through a wizard it has already been through.
@@ -144,10 +149,14 @@ fun AlarmEditorScreen(
                 ) {
                     when (current) {
                         0 -> TimeStep(
+                            label = draft.label,
+                            onLabelChange = viewModel::setLabel,
                             hour = draft.hour,
                             minute = draft.minute,
                             use24Hour = use24Hour,
                             repeatDays = draft.repeatDays,
+                            quickPresets = quickPresets,
+                            onSelectPreset = viewModel::applyQuickPreset,
                             onTimeChange = viewModel::setTime,
                             onToggleDay = viewModel::toggleDay,
                         )
@@ -251,13 +260,82 @@ private fun StepHeader(
 
 @Composable
 private fun TimeStep(
+    label: String,
+    onLabelChange: (String) -> Unit,
     hour: Int,
     minute: Int,
     use24Hour: Boolean,
     repeatDays: Set<DayOfWeek>,
+    quickPresets: List<QuickPreset>,
+    onSelectPreset: (QuickPreset) -> Unit,
     onTimeChange: (Int, Int) -> Unit,
     onToggleDay: (DayOfWeek) -> Unit,
 ) {
+    Section(title = "ALARM NAME") {
+        OutlinedTextField(
+            value = label,
+            onValueChange = onLabelChange,
+            placeholder = {
+                Text(
+                    text = "e.g., Work, Medication, Gym",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+            textStyle = MaterialTheme.typography.titleMedium,
+            singleLine = true,
+            shape = RoundedCornerShape(20.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                cursorColor = MaterialTheme.colorScheme.primary,
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("alarm_name_input"),
+        )
+    }
+
+    if (quickPresets.isNotEmpty()) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = "QUICK SET PRESETS",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                items(quickPresets, key = { it.id }) { preset ->
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .border(
+                                1.dp,
+                                MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                RoundedCornerShape(16.dp),
+                            )
+                            .clickable { onSelectPreset(preset) }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    ) {
+                        Text(
+                            text = "${preset.label} (+${preset.formattedDuration})",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     RadialTimePicker(
         hour = hour,
         minute = minute,
