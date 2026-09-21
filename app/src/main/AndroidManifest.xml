@@ -32,6 +32,7 @@
     <!-- In-app updates: fetch the release from GitHub and hand it to the
          system installer, which still asks the user to confirm. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Vision challenges. The light sensor needs no permission. -->

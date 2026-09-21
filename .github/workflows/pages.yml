@@ -9,6 +9,8 @@ name: Landing page
 on:
   push:
     branches:
+      - main
+      - master
       - claude/iris-alarm-android-ebbpkc
     paths:
       - "site/**"

@@ -243,7 +243,7 @@
     </p>
 
     <div class="cta-row">
-      <a class="btn btn-primary" id="cta-download" href="https://github.com/gianrufin/IRIS-Alarm/releases/latest">
+      <a class="btn btn-primary" id="cta-download" href="./iris-alarm.apk" download="iris-alarm.apk">
         Download APK
       </a>
       <a class="btn btn-ghost" href="#download">All builds &amp; install steps</a>
@@ -591,24 +591,24 @@
         </thead>
         <tbody id="dl-rows">
           <tr>
-            <td><a id="dl-arm64" href="https://github.com/gianrufin/IRIS-Alarm/releases/latest">arm64-v8a</a>
+            <td><a id="dl-arm64" href="./iris-alarm.apk" download="iris-alarm.apk">arm64-v8a / standalone</a>
               <span class="pick">Recommended</span></td>
-            <td>Every phone sold in roughly the last eight years. Pick this one if you're not sure.</td>
-            <td id="sz-arm64">~27 MB</td>
+            <td>Full standalone build signed with the official side-load key. Works on modern Android devices (8.0+).</td>
+            <td id="sz-arm64">~81 MB</td>
           </tr>
           <tr>
-            <td><a id="dl-arm32" href="https://github.com/gianrufin/IRIS-Alarm/releases/latest">armeabi-v7a</a></td>
+            <td><a id="dl-arm32" href="./iris-alarm.apk" download="iris-alarm.apk">armeabi-v7a</a></td>
             <td>Older 32-bit devices.</td>
-            <td id="sz-arm32">~20 MB</td>
+            <td id="sz-arm32">~81 MB</td>
           </tr>
           <tr>
-            <td><a id="dl-x64" href="https://github.com/gianrufin/IRIS-Alarm/releases/latest">x86_64</a></td>
-            <td>Emulators and the handful of Intel-based devices.</td>
-            <td id="sz-x64">~29 MB</td>
+            <td><a id="dl-x64" href="./iris-alarm.apk" download="iris-alarm.apk">x86_64</a></td>
+            <td>Emulators and Intel-based devices.</td>
+            <td id="sz-x64">~81 MB</td>
           </tr>
           <tr>
-            <td><a id="dl-univ" href="https://github.com/gianrufin/IRIS-Alarm/releases/latest">universal</a></td>
-            <td>Contains every architecture. Much larger — only worth it if the others refuse to install.</td>
+            <td><a id="dl-univ" href="./iris-alarm.apk" download="iris-alarm.apk">universal</a></td>
+            <td>Contains all native libraries and assets.</td>
             <td id="sz-univ">~81 MB</td>
           </tr>
         </tbody>
@@ -780,7 +780,28 @@
           mb(arm64.size) + ' · Android 8.0+ · no Play Store listing';
       }
     })
-    .catch(function () { /* Static content stands on its own. */ });
+    .catch(function () {
+      // Fallback to locally hosted release metadata & APK on GitHub Pages
+      fetch('./version.json')
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+        .then(function (v) {
+          if (v.versionName) {
+            document.getElementById('stat-version').textContent = v.versionName;
+            document.getElementById('dl-version').textContent = v.versionName;
+            var cta = document.getElementById('cta-download');
+            cta.href = v.downloadUrl || './iris-alarm.apk';
+            cta.textContent = 'Download ' + v.versionName + ' APK';
+            if (v.sizeBytes) {
+              var s = mb(v.sizeBytes);
+              document.getElementById('cta-note').textContent =
+                s + ' · Android 8.0+ · Direct side-load APK';
+              document.getElementById('sz-arm64').textContent = s;
+              document.getElementById('sz-univ').textContent = s;
+            }
+          }
+        })
+        .catch(function () { /* Static content stands on its own. */ });
+    });
 })();
 </script>
 

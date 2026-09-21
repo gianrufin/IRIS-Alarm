@@ -14,9 +14,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -25,8 +28,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -47,6 +52,7 @@ fun UpdateSection(
     viewModel: UpdateViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val isOnline by viewModel.isOnline.collectAsStateWithLifecycle()
 
     // The install-unknown-apps toggle reports nothing back, so the pending
     // update is remembered across the trip and re-checked on return.
@@ -62,11 +68,35 @@ fun UpdateSection(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
-            text = "VERSION ${viewModel.installedVersion}",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "VERSION ${viewModel.installedVersion}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(
+                            color = if (isOnline) Color(0xFF4CAF50) else MaterialTheme.colorScheme.outline,
+                            shape = CircleShape,
+                        ),
+                )
+                Text(
+                    text = if (isOnline) "ONLINE" else "OFFLINE",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
 
         AnimatedContent(
             targetState = state,
@@ -76,13 +106,17 @@ fun UpdateSection(
             when (current) {
                 is UpdateState.Idle -> ActionCard(
                     title = "CHECK FOR UPDATES",
-                    detail = "Looks at the project's GitHub releases",
+                    detail = if (isOnline) {
+                        "Connected · Tap to check for updates"
+                    } else {
+                        "Offline · Waiting for internet connection"
+                    },
                     onClick = viewModel::check,
                 )
 
                 is UpdateState.Checking -> StatusCard(
-                    title = "CHECKING…",
-                    detail = "Asking GitHub for the latest release",
+                    title = "CHECKING FOR UPDATES…",
+                    detail = "Looking for newer releases online",
                 )
 
                 is UpdateState.UpToDate -> ActionCard(

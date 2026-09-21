@@ -4,6 +4,7 @@ import android.os.Build
 import com.iris.alarm.BuildConfig
 import com.iris.alarm.domain.model.AppUpdate
 import com.iris.alarm.domain.model.ReleaseCandidate
+import com.iris.alarm.domain.model.isNewerVersion
 import com.iris.alarm.domain.model.pickAsset
 import com.iris.alarm.domain.model.pickUpdate
 import java.io.File
@@ -14,6 +15,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * Reads the repository's GitHub Releases for a build newer than this one.
@@ -37,50 +39,74 @@ class GitHubUpdateSource @Inject constructor() {
      */
     suspend fun latestUpdate(): Result<AppUpdate?> = withContext(Dispatchers.IO) {
         runCatching {
-            val body = get(RELEASES_URL) ?: return@runCatching null
-            val releases = JSONArray(body)
+            // First check the repository's GitHub Releases
+            val fromGitHub = runCatching { checkGitHubReleases() }.getOrNull()
+            if (fromGitHub != null) return@runCatching fromGitHub
 
-            val candidates = (0 until releases.length())
-                .map(releases::getJSONObject)
-                .map { release ->
-                    val assets = release.optJSONArray("assets")
-                    val assetNames = (0 until (assets?.length() ?: 0))
-                        .map { assets!!.getJSONObject(it).optString("name") }
-
-                    ReleaseCandidate(
-                        tag = release.optString("tag_name")
-                            .ifBlank { release.optString("name") },
-                        isDraft = release.optBoolean("draft"),
-                        assetNames = assetNames,
-                        notes = release.optString("body").take(NOTES_LIMIT),
-                    )
-                }
-
-            val deviceAbis = Build.SUPPORTED_ABIS?.toList().orEmpty()
-            val chosen = pickUpdate(candidates, BuildConfig.VERSION_NAME, deviceAbis)
-                ?: return@runCatching null
-            val assetName = pickAsset(chosen.assetNames, deviceAbis)
-                ?: return@runCatching null
-
-            // Re-read the raw asset to get its download URL and size.
-            val asset = (0 until releases.length())
-                .map(releases::getJSONObject)
-                .firstOrNull { it.optString("tag_name") == chosen.tag }
-                ?.optJSONArray("assets")
-                ?.let { assets ->
-                    (0 until assets.length())
-                        .map(assets::getJSONObject)
-                        .firstOrNull { it.optString("name") == assetName }
-                }
-                ?: return@runCatching null
-
-            AppUpdate(
-                versionName = chosen.tag.removePrefix("v"),
-                downloadUrl = asset.optString("browser_download_url"),
-                sizeBytes = asset.optLong("size"),
-                notes = chosen.notes,
-            ).takeIf { it.downloadUrl.isNotBlank() }
+            // Fallback: Check the GitHub Pages landing page version feed
+            checkLandingPage()
         }
+    }
+
+    private fun checkGitHubReleases(): AppUpdate? {
+        val body = get(RELEASES_URL) ?: return null
+        val releases = JSONArray(body)
+
+        val candidates = (0 until releases.length())
+            .map(releases::getJSONObject)
+            .map { release ->
+                val assets = release.optJSONArray("assets")
+                val assetNames = (0 until (assets?.length() ?: 0))
+                    .map { assets!!.getJSONObject(it).optString("name") }
+
+                ReleaseCandidate(
+                    tag = release.optString("tag_name")
+                        .ifBlank { release.optString("name") },
+                    isDraft = release.optBoolean("draft"),
+                    assetNames = assetNames,
+                    notes = release.optString("body").take(NOTES_LIMIT),
+                )
+            }
+
+        val deviceAbis = Build.SUPPORTED_ABIS?.toList().orEmpty()
+        val chosen = pickUpdate(candidates, BuildConfig.VERSION_NAME, deviceAbis)
+            ?: return null
+        val assetName = pickAsset(chosen.assetNames, deviceAbis)
+            ?: return null
+
+        // Re-read the raw asset to get its download URL and size.
+        val asset = (0 until releases.length())
+            .map(releases::getJSONObject)
+            .firstOrNull { it.optString("tag_name") == chosen.tag }
+            ?.optJSONArray("assets")
+            ?.let { assets ->
+                (0 until assets.length())
+                    .map(assets::getJSONObject)
+                    .firstOrNull { it.optString("name") == assetName }
+            }
+            ?: return null
+
+        return AppUpdate(
+            versionName = chosen.tag.removePrefix("v"),
+            downloadUrl = asset.optString("browser_download_url"),
+            sizeBytes = asset.optLong("size"),
+            notes = chosen.notes,
+        ).takeIf { it.downloadUrl.isNotBlank() }
+    }
+
+    private fun checkLandingPage(): AppUpdate? {
+        val body = get(LANDING_VERSION_URL) ?: return null
+        val json = JSONObject(body)
+        val candidate = json.optString("versionName").ifBlank { null } ?: return null
+        if (!isNewerVersion(candidate, BuildConfig.VERSION_NAME)) return null
+
+        val downloadUrl = json.optString("downloadUrl").ifBlank { null } ?: return null
+        return AppUpdate(
+            versionName = candidate,
+            downloadUrl = downloadUrl,
+            sizeBytes = json.optLong("sizeBytes"),
+            notes = json.optString("notes"),
+        )
     }
 
     /**
@@ -173,6 +199,8 @@ class GitHubUpdateSource @Inject constructor() {
         // the real name.
         const val RELEASES_URL =
             "https://api.github.com/repos/gianrufin/IRIS-Alarm/releases?per_page=10"
+        const val LANDING_VERSION_URL =
+            "https://gianrufin.github.io/IRIS-Alarm/app/version.json"
         const val TIMEOUT_MILLIS = 20_000
         const val PROGRESS_STEP = 0.01f
         const val NOTES_LIMIT = 500

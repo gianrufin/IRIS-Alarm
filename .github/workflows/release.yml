@@ -57,6 +57,10 @@ jobs:
             src="app/build/outputs/apk/release/app-${abi}-release.apk"
             [ -f "$src" ] && cp "$src" "dist/iris-alarm-${version}-${abi}.apk"
           done
+          if [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
+            cp "app/build/outputs/apk/release/app-release.apk" "dist/iris-alarm-${version}-universal.apk"
+            cp "app/build/outputs/apk/release/app-release.apk" "dist/iris-alarm.apk"
+          fi
           ls -la dist
 
           echo "version=${version}" >> "$GITHUB_OUTPUT"

@@ -10,6 +10,7 @@ import com.iris.alarm.BuildConfig
 import com.iris.alarm.data.update.ApkInstaller
 import com.iris.alarm.data.update.GitHubUpdateSource
 import com.iris.alarm.data.update.InstallResult
+import com.iris.alarm.data.update.NetworkMonitor
 import com.iris.alarm.domain.model.AppUpdate
 import com.iris.alarm.domain.model.UpdateState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -17,8 +18,10 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 @HiltViewModel
@@ -26,10 +29,18 @@ class UpdateViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val source: GitHubUpdateSource,
     private val installer: ApkInstaller,
+    private val networkMonitor: NetworkMonitor,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<UpdateState>(UpdateState.Idle)
     val state: StateFlow<UpdateState> = _state.asStateFlow()
+
+    val isOnline: StateFlow<Boolean> = networkMonitor.isOnline
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = networkMonitor.isCurrentlyOnline(),
+        )
 
     val installedVersion: String = BuildConfig.VERSION_NAME
 
@@ -44,10 +55,29 @@ class UpdateViewModel @Inject constructor(
                 }
             }
         }
+
+        // Automatically check for updates whenever the device is online
+        viewModelScope.launch {
+            networkMonitor.isOnline.collect { online ->
+                if (online) {
+                    val current = _state.value
+                    if (current is UpdateState.Idle || current is UpdateState.Failed) {
+                        check()
+                    }
+                }
+            }
+        }
     }
 
     fun check() {
         if (_state.value is UpdateState.Checking) return
+        if (!networkMonitor.isCurrentlyOnline()) {
+            _state.value = UpdateState.Failed(
+                "No internet connection. IRIS will check automatically once you're online.",
+            )
+            return
+        }
+
         _state.value = UpdateState.Checking
 
         viewModelScope.launch {
@@ -61,7 +91,7 @@ class UpdateViewModel @Inject constructor(
                 }
                 .onFailure { error ->
                     _state.value = UpdateState.Failed(
-                        error.message ?: "Could not reach GitHub",
+                        error.message ?: "Could not reach update server",
                     )
                 }
         }
