@@ -204,9 +204,10 @@ class AlarmForegroundService : Service() {
         enforcementJob?.cancel()
         enforcementJob = scope.launch {
             while (isActive && _ringingAlarmId.value != AlarmContract.NO_ALARM_ID) {
-                delay(800)
+                delay(1200)
                 if (!AlarmChallengeActivity.isActivityActive &&
-                    _ringingAlarmId.value != AlarmContract.NO_ALARM_ID
+                    _ringingAlarmId.value != AlarmContract.NO_ALARM_ID &&
+                    android.provider.Settings.canDrawOverlays(this@AlarmForegroundService)
                 ) {
                     Log.d(TAG, "Challenge overlay lost foreground; reasserting overlay")
                     launchAlarmScreen(alarmId)

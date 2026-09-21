@@ -116,40 +116,28 @@ class AlarmChallengeActivity : ComponentActivity() {
     override fun onPause() {
         super.onPause()
         isActivityActive = false
-        if (isAlarmStillRinging() && !isFinishing) {
-            relaunchChallenge()
-        }
     }
 
     override fun onStop() {
         super.onStop()
-        if (isAlarmStillRinging() && !isFinishing) {
-            relaunchChallenge()
-        }
+        isActivityActive = false
     }
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        // Prevents the user from jumping to home or switching apps while alarm is ringing
-        if (isAlarmStillRinging()) {
-            relaunchChallenge()
+        // If the user navigates to home while ringing, reassert challenge if overlay permission is granted
+        if (isAlarmStillRinging() && android.provider.Settings.canDrawOverlays(this)) {
+            window.decorView.postDelayed({
+                if (isAlarmStillRinging() && !isActivityActive && !isFinishing) {
+                    relaunchChallenge()
+                }
+            }, 1200)
         }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (!hasFocus && isAlarmStillRinging()) {
-            // When user attempts to pull down the notification shade or status bar
-            @Suppress("DEPRECATION")
-            val closeDialogs = Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS)
-            sendBroadcast(closeDialogs)
-            hideSystemBars()
-            window.decorView.postDelayed({
-                if (!hasWindowFocus() && isAlarmStillRinging() && !isFinishing) {
-                    relaunchChallenge()
-                }
-            }, 100)
-        } else if (hasFocus) {
+        if (hasFocus) {
             hideSystemBars()
         }
     }
