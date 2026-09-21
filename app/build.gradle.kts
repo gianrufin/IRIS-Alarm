@@ -74,6 +74,17 @@ android {
         buildConfig = true
     }
 
+    // Splitting by ABI cuts a real device's download to roughly a third; the universal APK
+    // is kept for side-loading onto an unknown device.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = true
+        }
+    }
+
     // MigrationTestHelper reads the exported schemas from the test APK's assets.
     sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
 

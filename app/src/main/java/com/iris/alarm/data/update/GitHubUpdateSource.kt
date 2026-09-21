@@ -100,7 +100,26 @@ class GitHubUpdateSource @Inject constructor() {
         val candidate = json.optString("versionName").ifBlank { null } ?: return null
         if (!isNewerVersion(candidate, BuildConfig.VERSION_NAME)) return null
 
-        val downloadUrl = json.optString("downloadUrl").ifBlank { null } ?: return null
+        val deviceAbis = Build.SUPPORTED_ABIS?.toList().orEmpty()
+        val assetsObj = json.optJSONObject("assets")
+        var chosenUrl: String? = null
+        if (assetsObj != null) {
+            for (abi in deviceAbis) {
+                val url = assetsObj.optString(abi).ifBlank { null }
+                if (url != null) {
+                    chosenUrl = url
+                    break
+                }
+            }
+            if (chosenUrl == null) {
+                chosenUrl = assetsObj.optString("universal").ifBlank { null }
+            }
+        }
+        if (chosenUrl == null) {
+            chosenUrl = json.optString("downloadUrl").ifBlank { null }
+        }
+        val downloadUrl = chosenUrl ?: return null
+
         return AppUpdate(
             versionName = candidate,
             downloadUrl = downloadUrl,
@@ -162,21 +181,49 @@ class GitHubUpdateSource @Inject constructor() {
 
     /** Null when GitHub says there is no such release yet. */
     private fun get(url: String): String? {
-        val connection = connect(url)
-        if (connection.responseCode == HTTP_NOT_FOUND) {
+        var currentUrl = url
+        for (redirectCount in 0..5) {
+            val connection = connect(currentUrl)
+            val code = connection.responseCode
+            if (code in 300..399) {
+                val location = connection.getHeaderField("Location")
+                connection.disconnect()
+                if (!location.isNullOrBlank()) {
+                    currentUrl = location
+                    continue
+                }
+            }
+            if (code == HTTP_NOT_FOUND) {
+                connection.disconnect()
+                return null
+            }
+            check(code in 200..299) {
+                "GitHub returned HTTP $code"
+            }
+            val body = connection.inputStream.bufferedReader().use { it.readText() }
             connection.disconnect()
-            return null
+            return body
         }
-        check(connection.responseCode in 200..299) {
-            "GitHub returned HTTP ${connection.responseCode}"
-        }
-        val body = connection.inputStream.bufferedReader().use { it.readText() }
-        connection.disconnect()
-        return body
+        return null
     }
 
-    private fun open(url: String): HttpURLConnection = connect(url).apply {
-        check(responseCode in 200..299) { "GitHub returned HTTP $responseCode" }
+    private fun open(url: String): HttpURLConnection {
+        var currentUrl = url
+        for (redirectCount in 0..5) {
+            val connection = connect(currentUrl)
+            val code = connection.responseCode
+            if (code in 300..399) {
+                val location = connection.getHeaderField("Location")
+                connection.disconnect()
+                if (!location.isNullOrBlank()) {
+                    currentUrl = location
+                    continue
+                }
+            }
+            check(code in 200..299) { "GitHub returned HTTP $code" }
+            return connection
+        }
+        error("Too many redirects connecting to $url")
     }
 
     private fun connect(url: String): HttpURLConnection =
@@ -184,7 +231,7 @@ class GitHubUpdateSource @Inject constructor() {
             connectTimeout = TIMEOUT_MILLIS
             readTimeout = TIMEOUT_MILLIS
             instanceFollowRedirects = true
-            setRequestProperty("Accept", "application/vnd.github+json")
+            setRequestProperty("Accept", "application/vnd.github+json, application/octet-stream, */*")
             setRequestProperty("User-Agent", "IRIS-Alarm")
         }
 

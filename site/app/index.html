@@ -243,7 +243,7 @@
     </p>
 
     <div class="cta-row">
-      <a class="btn btn-primary" id="cta-download" href="./iris-alarm.apk" download="iris-alarm.apk">
+      <a class="btn btn-primary" id="cta-download" href="https://github.com/gianrufin/IRIS-Alarm/releases/latest">
         Download 0.10.0 APK
       </a>
       <a class="btn btn-ghost" href="#download">All builds &amp; install steps</a>
@@ -591,23 +591,23 @@
         </thead>
         <tbody id="dl-rows">
           <tr>
-            <td><a id="dl-arm64" href="./iris-alarm.apk" download="iris-alarm.apk">arm64-v8a / standalone</a>
+            <td><a id="dl-arm64" href="https://github.com/gianrufin/IRIS-Alarm/releases/latest">arm64-v8a</a>
               <span class="pick">Recommended</span></td>
             <td>Full standalone build signed with the official side-load key. Works on modern Android devices (8.0+).</td>
-            <td id="sz-arm64">~81 MB</td>
+            <td id="sz-arm64">~28 MB</td>
           </tr>
           <tr>
-            <td><a id="dl-arm32" href="./iris-alarm.apk" download="iris-alarm.apk">armeabi-v7a</a></td>
+            <td><a id="dl-arm32" href="https://github.com/gianrufin/IRIS-Alarm/releases/latest">armeabi-v7a</a></td>
             <td>Older 32-bit devices.</td>
-            <td id="sz-arm32">~81 MB</td>
+            <td id="sz-arm32">~24 MB</td>
           </tr>
           <tr>
-            <td><a id="dl-x64" href="./iris-alarm.apk" download="iris-alarm.apk">x86_64</a></td>
+            <td><a id="dl-x64" href="https://github.com/gianrufin/IRIS-Alarm/releases/latest">x86_64</a></td>
             <td>Emulators and Intel-based devices.</td>
-            <td id="sz-x64">~81 MB</td>
+            <td id="sz-x64">~29 MB</td>
           </tr>
           <tr>
-            <td><a id="dl-univ" href="./iris-alarm.apk" download="iris-alarm.apk">universal</a></td>
+            <td><a id="dl-univ" href="https://github.com/gianrufin/IRIS-Alarm/releases/latest">universal</a></td>
             <td>Contains all native libraries and assets.</td>
             <td id="sz-univ">~81 MB</td>
           </tr>
@@ -764,9 +764,28 @@
       document.getElementById('stat-version').textContent = v.versionName;
       document.getElementById('dl-version').textContent = v.versionName;
       var cta = document.getElementById('cta-download');
+      var armUrl = v.assets && v.assets['arm64-v8a'] ? v.assets['arm64-v8a'] : (v.downloadUrl || 'https://github.com/gianrufin/IRIS-Alarm/releases/latest');
       if (cta) {
-        cta.href = v.downloadUrl || './iris-alarm.apk';
+        cta.href = armUrl;
         cta.textContent = 'Download ' + v.versionName + ' APK';
+      }
+      if (v.assets) {
+        if (v.assets['arm64-v8a']) {
+          var l = document.getElementById('dl-arm64');
+          if (l) l.href = v.assets['arm64-v8a'];
+        }
+        if (v.assets['armeabi-v7a']) {
+          var l = document.getElementById('dl-arm32');
+          if (l) l.href = v.assets['armeabi-v7a'];
+        }
+        if (v.assets['x86_64']) {
+          var l = document.getElementById('dl-x64');
+          if (l) l.href = v.assets['x86_64'];
+        }
+        if (v.assets['universal']) {
+          var l = document.getElementById('dl-univ');
+          if (l) l.href = v.assets['universal'];
+        }
       }
       if (v.sizeBytes) {
         var s = mb(v.sizeBytes);
@@ -774,15 +793,13 @@
         if (note) note.textContent = s + ' · Android 8.0+ · Direct side-load APK';
         var szArm = document.getElementById('sz-arm64');
         if (szArm) szArm.textContent = s;
-        var szUniv = document.getElementById('sz-univ');
-        if (szUniv) szUniv.textContent = s;
       }
     }
   }
 
   function wire(assets, suffix, linkId, sizeId) {
     var asset = assets.filter(function (a) { return a.name.indexOf(suffix) !== -1; })[0];
-    if (!asset) return;
+    if (!asset) return null;
     var link = document.getElementById(linkId);
     var size = document.getElementById(sizeId);
     if (link) link.href = asset.browser_download_url;
@@ -802,7 +819,7 @@
     .then(function (release) {
       var version = (release.tag_name || '').replace(/^v/, '');
       var current = document.getElementById('stat-version').textContent.trim();
-      if (isNewer(version, current)) {
+      if (isNewer(version, current) || version === current) {
         document.getElementById('stat-version').textContent = version;
         document.getElementById('dl-version').textContent = version;
         var assets = release.assets || [];
@@ -810,14 +827,15 @@
         wire(assets, 'armeabi-v7a', 'dl-arm32', 'sz-arm32');
         wire(assets, 'x86_64', 'dl-x64', 'sz-x64');
         wire(assets, 'universal', 'dl-univ', 'sz-univ');
-        if (arm64) {
+        var primary = arm64 || assets[0];
+        if (primary) {
           var cta = document.getElementById('cta-download');
           if (cta) {
-            cta.href = arm64.browser_download_url;
-            cta.textContent = 'Download ' + version + ' (arm64)';
+            cta.href = primary.browser_download_url;
+            cta.textContent = 'Download ' + version + (arm64 ? ' (arm64)' : ' APK');
           }
           var note = document.getElementById('cta-note');
-          if (note) note.textContent = mb(arm64.size) + ' · Android 8.0+ · no Play Store listing';
+          if (note) note.textContent = mb(primary.size) + ' · Android 8.0+ · no Play Store listing';
         }
       }
     })
