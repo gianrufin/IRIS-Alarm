@@ -1,7 +1,7 @@
 {
-  "versionName": "0.9.0",
-  "versionCode": 11,
+  "versionName": "0.10.0",
+  "versionCode": 12,
   "downloadUrl": "https://gianrufin.github.io/IRIS-Alarm/app/iris-alarm.apk",
   "sizeBytes": 85010999,
-  "notes": "IRIS Alarm 0.9.0 side-load release with custom alarm names and automatic online update detection."
+  "notes": "IRIS Alarm 0.10.0: Custom alarm names, automatic online update detection, persistent alarm enforcement, and updated landing page distribution."
 }
