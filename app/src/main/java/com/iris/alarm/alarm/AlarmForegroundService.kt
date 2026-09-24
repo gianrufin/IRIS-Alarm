@@ -4,6 +4,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.database.ContentObserver
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
@@ -11,11 +12,14 @@ import android.media.MediaPlayer
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.provider.Settings
 import android.util.Log
 import androidx.core.app.ServiceCompat
 import androidx.core.content.getSystemService
@@ -70,6 +74,11 @@ class AlarmForegroundService : Service() {
     /** Alarm-stream volume to put back when the alarm stops, if we raised it. */
     private var restoreVolumeTo: Int? = null
 
+    /** Target volume floor enforced during ringing so volume cannot be turned down. */
+    private var targetAlarmVolume: Int? = null
+
+    private var volumeObserver: ContentObserver? = null
+
     /** True when this ring is the follow-up check rather than the alarm itself. */
     private var isWakeCheck = false
 
@@ -117,8 +126,9 @@ class AlarmForegroundService : Service() {
         acquireWakeLock()
         launchAlarmScreen(alarmId)
         startEnforcement(alarmId)
-        // Whatever is ringing now supersedes any "snoozed until" note.
+        // Whatever is ringing now supersedes any "snoozed until" note and upcoming warning.
         AlarmNotifications.clearSnoozed(this)
+        AlarmNotifications.clearUpcoming(this, alarmId)
 
         scope.launch {
             val alarm = if (alarmId == AlarmContract.NO_ALARM_ID) {
@@ -205,9 +215,10 @@ class AlarmForegroundService : Service() {
         enforcementJob = scope.launch {
             while (isActive && _ringingAlarmId.value != AlarmContract.NO_ALARM_ID) {
                 delay(1200)
+                ensureVolumeFloor()
                 if (!AlarmChallengeActivity.isActivityActive &&
                     _ringingAlarmId.value != AlarmContract.NO_ALARM_ID &&
-                    android.provider.Settings.canDrawOverlays(this@AlarmForegroundService)
+                    Settings.canDrawOverlays(this@AlarmForegroundService)
                 ) {
                     Log.d(TAG, "Challenge overlay lost foreground; reasserting overlay")
                     launchAlarmScreen(alarmId)
@@ -220,25 +231,77 @@ class AlarmForegroundService : Service() {
      * An alarm on a muted stream is no alarm at all, so the stream is lifted to
      * the configured floor for the duration and restored in [stopRinging] — the
      * user's own volume setting is borrowed, not overwritten.
+     *
+     * In addition, this locks the active alarm volume floor so attempts to turn
+     * the volume down while ringing are bypassed and reasserted.
      */
     private fun raiseVolumeFloor(percent: Int) {
-        if (percent <= 0) return
         val audioManager = getSystemService<AudioManager>() ?: return
 
         val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
-        val floor = (max * percent / 100).coerceIn(1, max)
+        val effectivePercent = if (percent > 0) percent else 80
+        val floor = (max * effectivePercent / 100).coerceIn(1, max)
         val current = audioManager.getStreamVolume(AudioManager.STREAM_ALARM)
-        if (current >= floor) return
 
-        // Raising the alarm stream is refused while some Do Not Disturb policies
-        // are active; ringing quietly beats crashing.
+        if (current < floor) {
+            // Raising the alarm stream is refused while some Do Not Disturb policies
+            // are active; ringing quietly beats crashing.
+            runCatching {
+                audioManager.setStreamVolume(AudioManager.STREAM_ALARM, floor, 0)
+                restoreVolumeTo = current
+            }.onFailure { Log.w(TAG, "Could not raise the alarm stream volume", it) }
+            targetAlarmVolume = floor
+        } else {
+            targetAlarmVolume = maxOf(current, floor)
+        }
+
+        startVolumeMonitoring()
+    }
+
+    private fun startVolumeMonitoring() {
+        stopVolumeMonitoring()
+        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                super.onChange(selfChange)
+                ensureVolumeFloor()
+            }
+        }
+        volumeObserver = observer
         runCatching {
-            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, floor, 0)
-            restoreVolumeTo = current
-        }.onFailure { Log.w(TAG, "Could not raise the alarm stream volume", it) }
+            contentResolver.registerContentObserver(
+                Settings.System.CONTENT_URI,
+                true,
+                observer,
+            )
+        }
+    }
+
+    private fun stopVolumeMonitoring() {
+        volumeObserver?.let { observer ->
+            runCatching { contentResolver.unregisterContentObserver(observer) }
+        }
+        volumeObserver = null
+    }
+
+    private fun ensureVolumeFloor() {
+        if (_ringingAlarmId.value == AlarmContract.NO_ALARM_ID) return
+        val audioManager = getSystemService<AudioManager>() ?: return
+        val target = targetAlarmVolume ?: return
+        val current = audioManager.getStreamVolume(AudioManager.STREAM_ALARM)
+        if (current < target) {
+            Log.d(TAG, "Alarm volume decreased ($current < $target); reasserting volume")
+            runCatching {
+                audioManager.setStreamVolume(AudioManager.STREAM_ALARM, target, 0)
+            }
+        } else if (current > target) {
+            // If volume was increased, update target to allow higher volume
+            targetAlarmVolume = current
+        }
     }
 
     private fun restoreVolume() {
+        stopVolumeMonitoring()
+        targetAlarmVolume = null
         val previous = restoreVolumeTo ?: return
         restoreVolumeTo = null
         val audioManager = getSystemService<AudioManager>() ?: return

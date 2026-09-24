@@ -65,7 +65,7 @@ import com.iris.alarm.domain.model.IrisSettings
 import com.iris.alarm.domain.model.QuickPreset
 import com.iris.alarm.domain.model.VisionChallenge
 import com.iris.alarm.ui.challenge.ChallengeScreen
-import com.iris.alarm.ui.components.RadialTimePicker
+import com.iris.alarm.ui.components.HorizonTimePicker
 import com.iris.alarm.ui.components.formatClock
 import com.iris.alarm.ui.components.rememberAnchorThumbnail
 import java.time.DayOfWeek
@@ -336,7 +336,7 @@ private fun TimeStep(
         }
     }
 
-    RadialTimePicker(
+    HorizonTimePicker(
         hour = hour,
         minute = minute,
         use24Hour = use24Hour,

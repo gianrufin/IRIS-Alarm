@@ -47,12 +47,33 @@ class AlarmReceiver : BroadcastReceiver() {
             return
         }
 
+        if (intent.action == AlarmContract.ACTION_UPCOMING_ALARM) {
+            val alarmId = intent.getLongExtra(AlarmContract.EXTRA_ALARM_ID, AlarmContract.NO_ALARM_ID)
+            if (alarmId == AlarmContract.NO_ALARM_ID) return
+            val pendingUpcoming = goAsync()
+            scope.launch {
+                try {
+                    val alarm = repository.getAlarm(alarmId)
+                    if (alarm != null && alarm.enabled) {
+                        val triggerAt = alarm.nextTriggerAtMillis() ?: return@launch
+                        AlarmNotifications.showUpcoming(context, alarm, triggerAt, use24Hour = false)
+                    }
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Failed to post upcoming alarm notice for $alarmId", t)
+                } finally {
+                    pendingUpcoming.finish()
+                }
+            }
+            return
+        }
+
         val isWakeCheck = intent.action == AlarmContract.ACTION_WAKE_CHECK
         val isSnooze = intent.action == AlarmContract.ACTION_SNOOZE_FIRED
         if (intent.action != AlarmContract.ACTION_ALARM_FIRED && !isWakeCheck && !isSnooze) return
 
         val alarmId = intent.getLongExtra(AlarmContract.EXTRA_ALARM_ID, AlarmContract.NO_ALARM_ID)
         Log.i(TAG, if (isWakeCheck) "Wake check for alarm $alarmId" else "Alarm $alarmId fired")
+        AlarmNotifications.clearUpcoming(context, alarmId)
 
         ContextCompat.startForegroundService(
             context,

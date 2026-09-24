@@ -66,6 +66,47 @@ class AlarmScheduler @Inject constructor(
                 pendingIntent,
             )
         }
+
+        scheduleUpcomingNotice(alarm, triggerAt)
+    }
+
+    private fun scheduleUpcomingNotice(alarm: Alarm, triggerAt: Long) {
+        val now = System.currentTimeMillis()
+        val upcomingLeadMillis = 60 * 60 * 1000L
+        val upcomingTriggerAt = triggerAt - upcomingLeadMillis
+
+        if (upcomingTriggerAt > now) {
+            val pendingIntent = upcomingPendingIntent(alarm.id)
+            if (canScheduleExact) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    upcomingTriggerAt,
+                    pendingIntent,
+                )
+            } else {
+                alarmManager.setWindow(
+                    AlarmManager.RTC_WAKEUP,
+                    upcomingTriggerAt,
+                    WINDOW_MILLIS,
+                    pendingIntent,
+                )
+            }
+        } else if (triggerAt - now in (2 * 60 * 1000L)..upcomingLeadMillis) {
+            AlarmNotifications.showUpcoming(context, alarm, triggerAt, use24Hour = false)
+        }
+    }
+
+    private fun upcomingPendingIntent(alarmId: Long): PendingIntent {
+        val intent = Intent(context, AlarmReceiver::class.java).apply {
+            action = AlarmContract.ACTION_UPCOMING_ALARM
+            putExtra(AlarmContract.EXTRA_ALARM_ID, alarmId)
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            AlarmContract.upcomingRequestCode(alarmId),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
     }
 
     /**
@@ -127,6 +168,12 @@ class AlarmScheduler @Inject constructor(
 
     fun cancel(alarmId: Long) {
         alarmManager.cancel(triggerPendingIntent(alarmId, mutable = false))
+        cancelUpcoming(alarmId)
+    }
+
+    fun cancelUpcoming(alarmId: Long) {
+        alarmManager.cancel(upcomingPendingIntent(alarmId))
+        AlarmNotifications.clearUpcoming(context, alarmId)
     }
 
     /** Re-arms everything. Used after boot, time change, and timezone change. */

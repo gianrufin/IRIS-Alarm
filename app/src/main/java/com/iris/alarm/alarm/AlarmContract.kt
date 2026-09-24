@@ -49,4 +49,13 @@ object AlarmContract {
 
     /** "Cancel snooze" from the notification, which is also a single slot. */
     const val CANCEL_SNOOZE_REQUEST_CODE = 4_000_000
+
+    /** Broadcast action for notifying the user of an upcoming alarm (~1 hour before). */
+    const val ACTION_UPCOMING_ALARM = "com.iris.alarm.action.UPCOMING_ALARM"
+
+    /** Marks intent as an early challenge dismissal from the upcoming notification. */
+    const val EXTRA_EARLY_DISMISS = "com.iris.alarm.extra.EARLY_DISMISS"
+
+    fun upcomingRequestCode(alarmId: Long): Int = 5_000_000 + triggerRequestCode(alarmId)
+    fun earlyDismissRequestCode(alarmId: Long): Int = 6_000_000 + triggerRequestCode(alarmId)
 }

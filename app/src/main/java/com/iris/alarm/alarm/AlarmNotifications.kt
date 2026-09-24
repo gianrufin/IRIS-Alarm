@@ -33,6 +33,11 @@ object AlarmNotifications {
     const val SNOOZED_CHANNEL_ID = "iris_alarm_snoozed"
     const val SNOOZED_NOTIFICATION_ID = 4712
 
+    /** Advance warning channel for alarms ringing in ~1 hour. */
+    const val UPCOMING_CHANNEL_ID = "iris_alarm_upcoming"
+
+    fun upcomingNotificationId(alarmId: Long): Int = 8_000 + AlarmContract.triggerRequestCode(alarmId)
+
     private fun snoozePendingIntent(context: Context, alarmId: Long): PendingIntent =
         PendingIntent.getService(
             context,
@@ -130,6 +135,92 @@ object AlarmNotifications {
 
     fun clearSnoozed(context: Context) {
         NotificationManagerCompat.from(context).cancel(SNOOZED_NOTIFICATION_ID)
+    }
+
+    private fun ensureUpcomingChannel(context: Context) {
+        val channel = NotificationChannel(
+            UPCOMING_CHANNEL_ID,
+            context.getString(R.string.channel_upcoming_name),
+            NotificationManager.IMPORTANCE_LOW,
+        ).apply {
+            description = context.getString(R.string.channel_upcoming_description)
+            setSound(null, null)
+            enableVibration(false)
+            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+        }
+        context.getSystemService<NotificationManager>()?.createNotificationChannel(channel)
+    }
+
+    fun showUpcoming(context: Context, alarm: Alarm, triggerAtMillis: Long, use24Hour: Boolean) {
+        ensureUpcomingChannel(context)
+
+        val at = Instant.ofEpochMilli(triggerAtMillis)
+            .atZone(ZoneId.systemDefault())
+            .toLocalTime()
+        val pattern = if (use24Hour) "HH:mm" else "h:mm a"
+        val timeFormatted = at.format(DateTimeFormatter.ofPattern(pattern))
+
+        val diffMinutes = ((triggerAtMillis - System.currentTimeMillis()) / 60_000L).coerceAtLeast(1)
+        val timeRemainingStr = if (diffMinutes >= 60) {
+            val hrs = diffMinutes / 60
+            val mins = diffMinutes % 60
+            if (mins == 0L) "~$hrs hr" else "$hrs hr $mins min"
+        } else {
+            "~$diffMinutes min"
+        }
+
+        val challengeName = alarm.challenge.displayName
+
+        val earlyDismissIntent = Intent(context, AlarmChallengeActivity::class.java).apply {
+            putExtra(AlarmContract.EXTRA_ALARM_ID, alarm.id)
+            putExtra(AlarmContract.EXTRA_EARLY_DISMISS, true)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+        val earlyDismissPendingIntent = PendingIntent.getActivity(
+            context,
+            AlarmContract.earlyDismissRequestCode(alarm.id),
+            earlyDismissIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        val title = context.getString(R.string.notification_upcoming_title, timeFormatted)
+        val text = context.getString(R.string.notification_upcoming_text, timeRemainingStr, challengeName)
+
+        val notification = NotificationCompat.Builder(context, UPCOMING_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_iris_notification)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setCategory(NotificationCompat.CATEGORY_EVENT)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setShowWhen(true)
+            .setWhen(triggerAtMillis)
+            .setAutoCancel(false)
+            .setContentIntent(earlyDismissPendingIntent)
+            .addAction(
+                NotificationCompat.Action.Builder(
+                    R.drawable.ic_iris_notification,
+                    context.getString(R.string.notification_upcoming_dismiss_action),
+                    earlyDismissPendingIntent,
+                ).build(),
+            )
+            .build()
+
+        if (ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) != PackageManager.PERMISSION_GRANTED &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+        ) {
+            return
+        }
+
+        NotificationManagerCompat.from(context)
+            .runCatching { notify(upcomingNotificationId(alarm.id), notification) }
+    }
+
+    fun clearUpcoming(context: Context, alarmId: Long) {
+        NotificationManagerCompat.from(context).cancel(upcomingNotificationId(alarmId))
     }
 
     private fun cancelSnoozePendingIntent(context: Context): PendingIntent =

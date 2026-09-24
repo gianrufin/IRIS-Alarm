@@ -48,5 +48,7 @@ class AppUpdateTest {
     fun `double digit components compare numerically, not alphabetically`() {
         assertTrue(isNewerVersion("0.10.0", "0.9.0"))
         assertFalse(isNewerVersion("0.9.0", "0.10.0"))
+        assertTrue(isNewerVersion("0.11.0", "0.10.0"))
+        assertFalse(isNewerVersion("0.10.0", "0.11.0"))
     }
 }

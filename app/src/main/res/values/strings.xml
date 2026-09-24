@@ -20,6 +20,12 @@
     <string name="notification_snoozed_text_generic">IRIS will ring again</string>
     <string name="notification_snoozed_cancel">Cancel snooze</string>
 
+    <string name="channel_upcoming_name">Upcoming alarms</string>
+    <string name="channel_upcoming_description">Shown before an IRIS alarm rings to notify you in advance.</string>
+    <string name="notification_upcoming_title">Upcoming alarm at %1$s</string>
+    <string name="notification_upcoming_text">Rings in %1$s • Tap to dismiss early with challenge</string>
+    <string name="notification_upcoming_dismiss_action">Turn off alarm (Solve Challenge)</string>
+
     <string name="shortcut_alarm_short">Alarm</string>
     <string name="shortcut_alarm_long">Create an alarm</string>
 </resources>
