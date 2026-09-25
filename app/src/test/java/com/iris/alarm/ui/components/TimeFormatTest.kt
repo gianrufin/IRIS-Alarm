@@ -50,4 +50,12 @@ class TimeFormatTest {
         assertEquals("7:05 PM", formatClock(19, 5, use24Hour = false).inline())
         assertEquals("19:05", formatClock(19, 5, use24Hour = true).inline())
     }
+
+    @Test
+    fun `circadian theme classifies hours accurately`() {
+        assertEquals("Morning Horizon", circadianThemeForHour(7).label)
+        assertEquals("Daylight Horizon", circadianThemeForHour(14).label)
+        assertEquals("Night Horizon", circadianThemeForHour(23).label)
+        assertEquals("Night Horizon", circadianThemeForHour(3).label)
+    }
 }

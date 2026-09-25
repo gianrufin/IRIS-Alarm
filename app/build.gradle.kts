@@ -37,8 +37,8 @@ android {
         minSdk = 26
         targetSdk = 35
         // Bumped on every release; the in-app updater compares these.
-        versionCode = 13
-        versionName = "0.11.0"
+        versionCode = 14
+        versionName = "0.12.0"
 
         // Hilt needs its own Application under test; CustomTestRunner swaps it in.
         testInstrumentationRunner = "com.iris.alarm.HiltTestRunner"

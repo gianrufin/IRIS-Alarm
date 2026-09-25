@@ -1,13 +1,13 @@
 {
-  "versionName": "0.11.0",
-  "versionCode": 13,
-  "downloadUrl": "https://github.com/gianrufin/IRIS-Alarm/releases/download/v0.11.0/iris-alarm-0.11.0-universal.apk",
+  "versionName": "0.12.0",
+  "versionCode": 14,
+  "downloadUrl": "https://github.com/gianrufin/IRIS-Alarm/releases/download/v0.12.0/iris-alarm-0.12.0-universal.apk",
   "assets": {
-    "arm64-v8a": "https://github.com/gianrufin/IRIS-Alarm/releases/download/v0.11.0/iris-alarm-0.11.0-arm64-v8a.apk",
-    "armeabi-v7a": "https://github.com/gianrufin/IRIS-Alarm/releases/download/v0.11.0/iris-alarm-0.11.0-armeabi-v7a.apk",
-    "x86_64": "https://github.com/gianrufin/IRIS-Alarm/releases/download/v0.11.0/iris-alarm-0.11.0-x86_64.apk",
-    "universal": "https://github.com/gianrufin/IRIS-Alarm/releases/download/v0.11.0/iris-alarm-0.11.0-universal.apk"
+    "arm64-v8a": "https://github.com/gianrufin/IRIS-Alarm/releases/download/v0.12.0/iris-alarm-0.12.0-arm64-v8a.apk",
+    "armeabi-v7a": "https://github.com/gianrufin/IRIS-Alarm/releases/download/v0.12.0/iris-alarm-0.12.0-armeabi-v7a.apk",
+    "x86_64": "https://github.com/gianrufin/IRIS-Alarm/releases/download/v0.12.0/iris-alarm-0.12.0-x86_64.apk",
+    "universal": "https://github.com/gianrufin/IRIS-Alarm/releases/download/v0.12.0/iris-alarm-0.12.0-universal.apk"
   },
-  "sizeBytes": 28404875,
-  "notes": "IRIS Alarm 0.11.0: Horizon Jog-Wheel time picker with circadian lighting, 1-hour upcoming alarm notice with challenge dismissal, hardware volume lock bypass protection, and UI polish."
+  "sizeBytes": 28405135,
+  "notes": "IRIS Alarm 0.12.0: Concentric Circular Dial time picker with ambient amber breathe animation, fine minute graduations, laser reticle alignment, and haptic feedback."
 }
