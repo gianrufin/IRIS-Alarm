@@ -110,6 +110,11 @@ fun FluidTimePicker(
     val haptic = LocalHapticFeedback.current
     val primaryColor = MaterialTheme.colorScheme.primary
 
+    // Always keep track of latest props to prevent closures capturing stale hours/minutes
+    val currentHour by rememberUpdatedState(hour)
+    val currentMinute by rememberUpdatedState(minute)
+    val currentOnTimeChange by rememberUpdatedState(onTimeChange)
+
     // Ambient breathing pulse for the center aura lens and separator
     val infiniteTransition = rememberInfiniteTransition(label = "breathePulse")
     val pulseGlow by infiniteTransition.animateFloat(
@@ -186,7 +191,7 @@ fun FluidTimePicker(
                 if (use24Hour) {
                     // Hours (00..23)
                     FluidRollerColumn(
-                        value = hour,
+                        value = currentHour,
                         modulus = 24,
                         startAtZero = true,
                         itemHeight = itemHeight,
@@ -194,7 +199,7 @@ fun FluidTimePicker(
                         primaryColor = primaryColor,
                         testTag = "roller_hour",
                         onValueSelected = { newHour ->
-                            onTimeChange(newHour, minute)
+                            currentOnTimeChange(newHour, currentMinute)
                         },
                     )
 
@@ -205,7 +210,7 @@ fun FluidTimePicker(
 
                     // Minutes (00..59)
                     FluidRollerColumn(
-                        value = minute,
+                        value = currentMinute,
                         modulus = 60,
                         startAtZero = true,
                         itemHeight = itemHeight,
@@ -213,12 +218,12 @@ fun FluidTimePicker(
                         primaryColor = primaryColor,
                         testTag = "roller_minute",
                         onValueSelected = { newMin ->
-                            onTimeChange(hour, newMin)
+                            currentOnTimeChange(currentHour, newMin)
                         },
                     )
                 } else {
-                    val hour12 = to12Hour(hour)
-                    val isPm = isPm(hour)
+                    val hour12 = to12Hour(currentHour)
+                    val isPm = isPm(currentHour)
 
                     // Hours (1..12)
                     FluidRollerColumn(
@@ -230,8 +235,9 @@ fun FluidTimePicker(
                         primaryColor = primaryColor,
                         testTag = "roller_hour",
                         onValueSelected = { newHour12 ->
-                            val new24 = to24Hour(newHour12, isPm)
-                            onTimeChange(new24, minute)
+                            val latestIsPm = isPm(currentHour)
+                            val new24 = to24Hour(newHour12, latestIsPm)
+                            currentOnTimeChange(new24, currentMinute)
                         },
                     )
 
@@ -242,7 +248,7 @@ fun FluidTimePicker(
 
                     // Minutes (00..59)
                     FluidRollerColumn(
-                        value = minute,
+                        value = currentMinute,
                         modulus = 60,
                         startAtZero = true,
                         itemHeight = itemHeight,
@@ -250,7 +256,7 @@ fun FluidTimePicker(
                         primaryColor = primaryColor,
                         testTag = "roller_minute",
                         onValueSelected = { newMin ->
-                            onTimeChange(hour, newMin)
+                            currentOnTimeChange(currentHour, newMin)
                         },
                     )
 
@@ -262,9 +268,9 @@ fun FluidTimePicker(
                         itemHeight = itemHeight,
                         primaryColor = primaryColor,
                         onToggle = { newIsPm ->
-                            val current12 = to12Hour(hour)
+                            val current12 = to12Hour(currentHour)
                             val new24 = to24Hour(current12, newIsPm)
-                            onTimeChange(new24, minute)
+                            currentOnTimeChange(new24, currentMinute)
                         },
                     )
                 }
@@ -324,31 +330,31 @@ fun FluidTimePicker(
                     text = "-15m",
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        val total = (hour * 60 + minute - 15 + 1440) % 1440
-                        onTimeChange(total / 60, total % 60)
+                        val total = (currentHour * 60 + currentMinute - 15 + 1440) % 1440
+                        currentOnTimeChange(total / 60, total % 60)
                     },
                 )
                 QuickNudgeChip(
                     text = "+15m",
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        val total = (hour * 60 + minute + 15) % 1440
-                        onTimeChange(total / 60, total % 60)
+                        val total = (currentHour * 60 + currentMinute + 15) % 1440
+                        currentOnTimeChange(total / 60, total % 60)
                     },
                 )
                 QuickNudgeChip(
                     text = "+1h",
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onTimeChange((hour + 1) % 24, minute)
+                        currentOnTimeChange((currentHour + 1) % 24, currentMinute)
                     },
                 )
                 QuickNudgeChip(
                     text = ":00",
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        val targetHour = if (minute == 0) (hour + 1) % 24 else hour
-                        onTimeChange(targetHour, 0)
+                        val targetHour = if (currentMinute == 0) (currentHour + 1) % 24 else currentHour
+                        currentOnTimeChange(targetHour, 0)
                     },
                 )
             }
@@ -376,26 +382,29 @@ private fun FluidRollerColumn(
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
 
-    val initialOffset = remember(value) {
-        if (startAtZero) value.toFloat() else (value - 1).toFloat()
-    }
-    val animOffset = remember { Animatable(initialOffset) }
+    val targetIndex = if (startAtZero) value else (value - 1)
+    val animOffset = remember { Animatable(targetIndex.toFloat()) }
     val velocityTracker = remember { VelocityTracker() }
-    var lastHapticTick by remember { mutableIntStateOf(animOffset.value.roundToInt()) }
+
+    var isInteracting by remember { mutableStateOf(false) }
+    var lastReportedValue by remember { mutableIntStateOf(value) }
+    var lastHapticTick by remember { mutableIntStateOf(targetIndex) }
+    val updatedOnValueSelected by rememberUpdatedState(onValueSelected)
 
     // Synchronize if external state changes (e.g. from nudge chips or presets)
     LaunchedEffect(value, modulus, startAtZero) {
-        val targetIndex = if (startAtZero) value else (value - 1)
-        val currentMod = ((animOffset.value.roundToInt() % modulus) + modulus) % modulus
-        if (currentMod != targetIndex) {
-            val shortest = findShortestOffset(animOffset.value, targetIndex, modulus)
+        if (value != lastReportedValue && !isInteracting) {
+            lastReportedValue = value
+            val target = if (startAtZero) value else (value - 1)
+            val shortest = findShortestOffset(animOffset.value, target, modulus)
             animOffset.animateTo(
                 targetValue = shortest,
                 animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioLowBouncy,
-                    stiffness = Spring.StiffnessMediumLow,
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMedium,
                 ),
             )
+            lastHapticTick = shortest.roundToInt()
         }
     }
 
@@ -407,8 +416,9 @@ private fun FluidRollerColumn(
             .pointerInput(modulus, startAtZero) {
                 detectVerticalDragGestures(
                     onDragStart = {
-                        scope.launch { animOffset.stop() }
+                        isInteracting = true
                         velocityTracker.resetTracking()
+                        scope.launch { animOffset.stop() }
                     },
                     onVerticalDrag = { change, dragAmount ->
                         change.consume()
@@ -425,21 +435,23 @@ private fun FluidRollerColumn(
                                 } else {
                                     ((currentInt % modulus) + modulus) % modulus + 1
                                 }
-                                onValueSelected(resolved)
+                                lastReportedValue = resolved
+                                updatedOnValueSelected(resolved)
                             }
                         }
                     },
                     onDragEnd = {
                         val velocity = velocityTracker.calculateVelocity().y
                         val velocityUnits = -velocity / itemHeightPx
-                        // Momentum fling target with elastic spring snap
-                        val target = (animOffset.value + velocityUnits * 0.15f).roundToInt().toFloat()
+                        // Momentum fling target with clean magnetic snap (no bouncing)
+                        val flingUnits = (velocityUnits * 0.12f).coerceIn(-12f, 12f)
+                        val target = (animOffset.value + flingUnits).roundToInt().toFloat()
                         scope.launch {
                             animOffset.animateTo(
                                 targetValue = target,
                                 animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioLowBouncy,
-                                    stiffness = Spring.StiffnessMediumLow,
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                    stiffness = Spring.StiffnessMedium,
                                 ),
                             )
                             val finalInt = animOffset.value.roundToInt()
@@ -448,8 +460,11 @@ private fun FluidRollerColumn(
                             } else {
                                 ((finalInt % modulus) + modulus) % modulus + 1
                             }
-                            onValueSelected(resolved)
+                            lastReportedValue = resolved
+                            lastHapticTick = finalInt
+                            updatedOnValueSelected(resolved)
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            isInteracting = false
                         }
                     },
                     onDragCancel = {
@@ -458,10 +473,11 @@ private fun FluidRollerColumn(
                             animOffset.animateTo(
                                 targetValue = snapTarget,
                                 animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioLowBouncy,
-                                    stiffness = Spring.StiffnessMediumLow,
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                    stiffness = Spring.StiffnessMedium,
                                 ),
                             )
+                            isInteracting = false
                         }
                     },
                 )
@@ -506,17 +522,21 @@ private fun FluidRollerColumn(
                             indication = null,
                             interactionSource = remember { MutableInteractionSource() },
                         ) {
-                            if (!isSelected) {
+                            if (!isSelected && !isInteracting) {
                                 scope.launch {
+                                    isInteracting = true
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    lastReportedValue = displayValue
+                                    lastHapticTick = itemRawIndex
+                                    updatedOnValueSelected(displayValue)
                                     animOffset.animateTo(
                                         targetValue = itemRawIndex.toFloat(),
                                         animationSpec = spring(
-                                            dampingRatio = Spring.DampingRatioLowBouncy,
-                                            stiffness = Spring.StiffnessMediumLow,
+                                            dampingRatio = Spring.DampingRatioNoBouncy,
+                                            stiffness = Spring.StiffnessMedium,
                                         ),
                                     )
-                                    onValueSelected(displayValue)
+                                    isInteracting = false
                                 }
                             }
                         },
@@ -725,12 +745,13 @@ private fun QuickNudgeChip(
 /**
  * Computes shortest cyclic distance to target index to prevent multiple full rotations.
  */
-private fun findShortestOffset(currentOffset: Float, targetModulo: Int, modulus: Int): Float {
-    val currentMod = ((currentOffset % modulus) + modulus) % modulus
-    var diff = targetModulo - currentMod
+private fun findShortestOffset(currentOffset: Float, targetIndex: Int, modulus: Int): Float {
+    val currentRounded = currentOffset.roundToInt()
+    val currentMod = ((currentRounded % modulus) + modulus) % modulus
+    var diff = targetIndex - currentMod
     if (diff > modulus / 2) diff -= modulus
     if (diff < -modulus / 2) diff += modulus
-    return currentOffset + diff
+    return (currentRounded + diff).toFloat()
 }
 
 /**
