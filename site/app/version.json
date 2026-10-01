@@ -1,13 +1,13 @@
 {
-  "versionName": "0.12.0",
-  "versionCode": 14,
-  "downloadUrl": "https://github.com/gianrufin/IRIS-Alarm/releases/download/v0.12.0/iris-alarm-0.12.0-universal.apk",
+  "versionName": "0.13.0",
+  "versionCode": 15,
+  "downloadUrl": "https://github.com/gianrufin/IRIS-Alarm/releases/download/v0.13.0/iris-alarm-0.13.0-universal.apk",
   "assets": {
-    "arm64-v8a": "https://github.com/gianrufin/IRIS-Alarm/releases/download/v0.12.0/iris-alarm-0.12.0-arm64-v8a.apk",
-    "armeabi-v7a": "https://github.com/gianrufin/IRIS-Alarm/releases/download/v0.12.0/iris-alarm-0.12.0-armeabi-v7a.apk",
-    "x86_64": "https://github.com/gianrufin/IRIS-Alarm/releases/download/v0.12.0/iris-alarm-0.12.0-x86_64.apk",
-    "universal": "https://github.com/gianrufin/IRIS-Alarm/releases/download/v0.12.0/iris-alarm-0.12.0-universal.apk"
+    "arm64-v8a": "https://github.com/gianrufin/IRIS-Alarm/releases/download/v0.13.0/iris-alarm-0.13.0-arm64-v8a.apk",
+    "armeabi-v7a": "https://github.com/gianrufin/IRIS-Alarm/releases/download/v0.13.0/iris-alarm-0.13.0-armeabi-v7a.apk",
+    "x86_64": "https://github.com/gianrufin/IRIS-Alarm/releases/download/v0.13.0/iris-alarm-0.13.0-x86_64.apk",
+    "universal": "https://github.com/gianrufin/IRIS-Alarm/releases/download/v0.13.0/iris-alarm-0.13.0-universal.apk"
   },
   "sizeBytes": 28405135,
-  "notes": "IRIS Alarm 0.12.0: Concentric Circular Dial time picker with ambient amber breathe animation, fine minute graduations, laser reticle alignment, and haptic feedback."
+  "notes": "IRIS Alarm 0.13.0: Simplified fluid vertical roller time picker with ambient breathing aura lens, kinetic inertia, and micro-nudge chips. Added Bluetooth Earphones Only private audio mode with sleep safety fallback and Bluetooth runtime permissions."
 }

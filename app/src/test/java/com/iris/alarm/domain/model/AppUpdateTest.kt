@@ -52,5 +52,7 @@ class AppUpdateTest {
         assertFalse(isNewerVersion("0.10.0", "0.11.0"))
         assertTrue(isNewerVersion("0.12.0", "0.11.0"))
         assertFalse(isNewerVersion("0.11.0", "0.12.0"))
+        assertTrue(isNewerVersion("0.13.0", "0.12.0"))
+        assertFalse(isNewerVersion("0.12.0", "0.13.0"))
     }
 }
