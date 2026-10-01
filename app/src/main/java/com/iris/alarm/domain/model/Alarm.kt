@@ -28,6 +28,11 @@ data class Alarm(
      */
     val autoSilenceMinutes: Int? = null,
     val volumeRampSeconds: Int? = null,
+    /**
+     * When true, plays audio through connected Bluetooth earphones only.
+     * Null means follow the global [IrisSettings.bluetoothOnly] setting.
+     */
+    val bluetoothOnly: Boolean? = null,
 ) {
     val time: LocalTime get() = LocalTime.of(hour, minute)
 

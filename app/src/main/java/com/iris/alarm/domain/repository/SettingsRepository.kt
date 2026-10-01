@@ -43,4 +43,6 @@ interface SettingsRepository {
     suspend fun setMathProblemCount(count: Int)
 
     suspend fun setOnboardingComplete(complete: Boolean)
+
+    suspend fun setBluetoothOnly(enabled: Boolean)
 }

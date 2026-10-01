@@ -71,4 +71,20 @@ class EffectiveSettingsTest {
 
         assertEquals(30 * 60_000L, effective.autoSilenceMillis)
     }
+
+    @Test
+    fun `bluetooth only override wins over global setting`() {
+        val defaultGlobal = global.copy(bluetoothOnly = false)
+        val alarmWithBt = Alarm(hour = 7, minute = 0, bluetoothOnly = true)
+        val effective = defaultGlobal.effectiveFor(alarmWithBt)
+
+        assertEquals(true, effective.bluetoothOnly)
+
+        val alarmWithoutBt = Alarm(hour = 7, minute = 0, bluetoothOnly = false)
+        val globalBt = global.copy(bluetoothOnly = true)
+        assertEquals(false, globalBt.effectiveFor(alarmWithoutBt).bluetoothOnly)
+
+        val alarmDefault = Alarm(hour = 7, minute = 0, bluetoothOnly = null)
+        assertEquals(true, globalBt.effectiveFor(alarmDefault).bluetoothOnly)
+    }
 }

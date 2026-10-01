@@ -38,6 +38,12 @@
     <!-- Vision challenges. The light sensor needs no permission. -->
     <uses-permission android:name="android.permission.CAMERA" />
 
+    <!-- Bluetooth audio routing for earphones-only alarms -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
     <uses-feature
         android:name="android.hardware.camera.any"
         android:required="false" />

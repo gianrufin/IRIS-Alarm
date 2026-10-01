@@ -65,6 +65,7 @@ import com.iris.alarm.domain.model.IrisSettings
 import com.iris.alarm.domain.model.QuickPreset
 import com.iris.alarm.domain.model.VisionChallenge
 import com.iris.alarm.ui.challenge.ChallengeScreen
+import com.iris.alarm.ui.components.BluetoothEarphonesNotice
 import com.iris.alarm.ui.components.BreatheDialTimePicker
 import com.iris.alarm.ui.components.formatClock
 import com.iris.alarm.ui.components.rememberAnchorThumbnail
@@ -459,6 +460,39 @@ private fun DetailsStep(viewModel: AlarmEditorViewModel) {
             label = soundTitle,
             onClick = { soundPicker.launch(ringtonePickerIntent(draft.soundUri)) },
         )
+    }
+
+    Section(title = "PLAY ON BLUETOOTH ONLY") {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(
+                text = "Play alarm sound through connected Bluetooth earphones only — won't wake roommates or a partner in the same room.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Chip(
+                    text = "DEFAULT",
+                    selected = draft.bluetoothOnly == null,
+                    onClick = { viewModel.setBluetoothOnly(null) },
+                )
+                Chip(
+                    text = "EARPHONES ONLY",
+                    selected = draft.bluetoothOnly == true,
+                    onClick = { viewModel.setBluetoothOnly(true) },
+                )
+                Chip(
+                    text = "PHONE SPEAKER",
+                    selected = draft.bluetoothOnly == false,
+                    onClick = { viewModel.setBluetoothOnly(false) },
+                )
+            }
+            if (draft.bluetoothOnly == true || draft.bluetoothOnly == null) {
+                BluetoothEarphonesNotice()
+            }
+        }
     }
 
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

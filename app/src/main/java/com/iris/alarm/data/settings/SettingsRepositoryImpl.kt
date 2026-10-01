@@ -50,6 +50,7 @@ class SettingsRepositoryImpl @Inject constructor(
             mathProblemCount = prefs[Keys.MATH_PROBLEM_COUNT]
                 ?: IrisSettings.DEFAULT_MATH_PROBLEMS,
             onboardingComplete = prefs[Keys.ONBOARDING_COMPLETE] ?: false,
+            bluetoothOnly = prefs[Keys.BLUETOOTH_ONLY] ?: false,
         )
     }
 
@@ -126,6 +127,10 @@ class SettingsRepositoryImpl @Inject constructor(
         context.dataStore.edit { it[Keys.ONBOARDING_COMPLETE] = complete }
     }
 
+    override suspend fun setBluetoothOnly(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.BLUETOOTH_ONLY] = enabled }
+    }
+
     private fun serializePresets(presets: List<QuickPreset>): String {
         val array = JSONArray()
         for (preset in presets) {
@@ -166,5 +171,6 @@ class SettingsRepositoryImpl @Inject constructor(
         val MATH_PROBLEM_COUNT = intPreferencesKey("math_problem_count")
         val ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
         val QUICK_PRESETS = stringPreferencesKey("quick_presets")
+        val BLUETOOTH_ONLY = booleanPreferencesKey("bluetooth_only")
     }
 }

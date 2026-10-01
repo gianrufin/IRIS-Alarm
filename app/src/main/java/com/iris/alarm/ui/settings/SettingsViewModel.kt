@@ -64,4 +64,8 @@ class SettingsViewModel @Inject constructor(
     fun setWakeCheckMinutes(minutes: Int) {
         viewModelScope.launch { repository.setWakeCheckMinutes(minutes) }
     }
+
+    fun setBluetoothOnly(enabled: Boolean) {
+        viewModelScope.launch { repository.setBluetoothOnly(enabled) }
+    }
 }

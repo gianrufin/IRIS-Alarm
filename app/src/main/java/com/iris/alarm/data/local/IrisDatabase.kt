@@ -6,7 +6,7 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [AlarmEntity::class], version = 3, exportSchema = true)
+@Database(entities = [AlarmEntity::class], version = 4, exportSchema = true)
 @TypeConverters(Converters::class)
 abstract class IrisDatabase : RoomDatabase() {
     abstract fun alarmDao(): AlarmDao
@@ -73,6 +73,15 @@ abstract class IrisDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+        /**
+         * Adds per-alarm Bluetooth-only audio routing override (nullable INTEGER).
+         */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE alarms ADD COLUMN bluetoothOnly INTEGER")
+            }
+        }
+
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
     }
 }

@@ -42,4 +42,11 @@ class PermissionsViewModel @Inject constructor(
         } else {
             null
         }
+
+    fun bluetoothRuntimePermission(): String? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            android.Manifest.permission.BLUETOOTH_CONNECT
+        } else {
+            null
+        }
 }

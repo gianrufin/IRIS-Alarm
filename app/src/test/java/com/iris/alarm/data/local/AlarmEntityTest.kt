@@ -24,6 +24,7 @@ class AlarmEntityTest {
             enabled = true,
             autoSilenceMinutes = 30,
             volumeRampSeconds = 0,
+            bluetoothOnly = true,
         )
 
         assertEquals(alarm, alarm.toEntity().toDomain())

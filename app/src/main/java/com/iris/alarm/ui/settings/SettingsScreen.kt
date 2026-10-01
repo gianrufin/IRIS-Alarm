@@ -8,13 +8,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,6 +33,7 @@ import com.iris.alarm.domain.model.IrisSettings
 import com.iris.alarm.domain.model.MathDifficulty
 import com.iris.alarm.domain.model.ThemeMode
 import com.iris.alarm.domain.model.VisionChallenge
+import com.iris.alarm.ui.components.BluetoothEarphonesNotice
 import com.iris.alarm.ui.theme.IrisTheme
 
 @Composable
@@ -54,6 +59,7 @@ fun SettingsScreen(
         onSnooze = viewModel::setSnoozeMinutes,
         onMathDifficulty = viewModel::setMathDifficulty,
         onMathProblemCount = viewModel::setMathProblemCount,
+        onBluetoothOnly = viewModel::setBluetoothOnly,
         // Passed as a slot so the preview can render the screen without a
         // Hilt-injected updater behind it.
         updates = { UpdateSection() },
@@ -76,6 +82,7 @@ private fun SettingsContent(
     onSnooze: (Int) -> Unit,
     onMathDifficulty: (MathDifficulty) -> Unit,
     onMathProblemCount: (Int) -> Unit,
+    onBluetoothOnly: (Boolean) -> Unit,
     updates: @Composable () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -200,6 +207,37 @@ private fun SettingsContent(
                 label = { if (it == 0) "DON'T TOUCH" else "$it%" },
                 onSelect = onMinimumVolume,
             )
+        }
+
+        Setting(
+            title = "PLAY ON BLUETOOTH ONLY",
+            detail = "Play alarms through connected Bluetooth earphones only — won't wake roommates or a partner in the same room.",
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = if (settings.bluetoothOnly) "ENABLED (EARPHONES ONLY)" else "DISABLED (PHONE SPEAKER)",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (settings.bluetoothOnly) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(
+                        checked = settings.bluetoothOnly,
+                        onCheckedChange = onBluetoothOnly,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.background,
+                            checkedTrackColor = MaterialTheme.colorScheme.primary,
+                            uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            uncheckedTrackColor = MaterialTheme.colorScheme.background,
+                            uncheckedBorderColor = MaterialTheme.colorScheme.outline,
+                        ),
+                    )
+                }
+                BluetoothEarphonesNotice()
+            }
         }
 
         Setting(
@@ -352,6 +390,7 @@ private fun SettingsPreview() {
             onSnooze = {},
             onMathDifficulty = {},
             onMathProblemCount = {},
+            onBluetoothOnly = {},
             updates = {},
         )
     }

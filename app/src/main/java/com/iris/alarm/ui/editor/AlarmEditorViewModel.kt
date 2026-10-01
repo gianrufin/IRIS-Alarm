@@ -88,6 +88,8 @@ class AlarmEditorViewModel @Inject constructor(
 
     fun setVolumeRampOverride(seconds: Int?) = update { it.copy(volumeRampSeconds = seconds) }
 
+    fun setBluetoothOnly(bluetoothOnly: Boolean?) = update { it.copy(bluetoothOnly = bluetoothOnly) }
+
     fun toggleDay(day: DayOfWeek) = update { alarm ->
         val days = alarm.repeatDays.toMutableSet()
         if (!days.add(day)) days.remove(day)

@@ -23,6 +23,7 @@ data class AlarmEntity(
     /** Null means the alarm follows the global setting. Added in schema v2. */
     val autoSilenceMinutes: Int? = null,
     val volumeRampSeconds: Int? = null,
+    val bluetoothOnly: Boolean? = null,
 )
 
 fun AlarmEntity.toDomain(): Alarm = Alarm(
@@ -39,6 +40,7 @@ fun AlarmEntity.toDomain(): Alarm = Alarm(
     enabled = enabled,
     autoSilenceMinutes = autoSilenceMinutes,
     volumeRampSeconds = volumeRampSeconds,
+    bluetoothOnly = bluetoothOnly,
 )
 
 fun Alarm.toEntity(): AlarmEntity = AlarmEntity(
@@ -55,6 +57,7 @@ fun Alarm.toEntity(): AlarmEntity = AlarmEntity(
     enabled = enabled,
     autoSilenceMinutes = autoSilenceMinutes,
     volumeRampSeconds = volumeRampSeconds,
+    bluetoothOnly = bluetoothOnly,
 )
 
 private fun Set<DayOfWeek>.toMask(): Int =

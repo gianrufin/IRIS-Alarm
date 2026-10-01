@@ -62,6 +62,11 @@ enum class AlarmPermission(val title: String, val why: String, val required: Boo
             "works without it.",
         required = false,
     ),
+    BLUETOOTH(
+        title = "Nearby Bluetooth devices",
+        why = "Required to detect your connected wireless earphones and route alarm audio only to your ears without playing on the phone speaker.",
+        required = false,
+    ),
     INSTALL_UPDATES(
         title = "Install unknown apps",
         why = "IRIS is side-loaded, so its own updater has to hand the new build " +
@@ -113,6 +118,15 @@ class AlarmPermissionChecker @Inject constructor(
             android.Manifest.permission.CAMERA,
         ) == PackageManager.PERMISSION_GRANTED
 
+        AlarmPermission.BLUETOOTH -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.BLUETOOTH_CONNECT,
+            ) == PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
+
         AlarmPermission.OVERLAY -> Settings.canDrawOverlays(context)
 
         AlarmPermission.INSTALL_UPDATES -> context.packageManager.canRequestPackageInstalls()
@@ -150,6 +164,8 @@ class AlarmPermissionChecker @Inject constructor(
         )
 
         AlarmPermission.CAMERA -> null
+
+        AlarmPermission.BLUETOOTH -> null
 
         // Both of these are "special app access" pages rather than permissions,
         // so they are only reachable by intent — there is no dialog to request.

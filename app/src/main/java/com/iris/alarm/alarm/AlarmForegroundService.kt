@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.database.ContentObserver
 import android.media.AudioAttributes
+import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
@@ -76,6 +77,9 @@ class AlarmForegroundService : Service() {
 
     /** Target volume floor enforced during ringing so volume cannot be turned down. */
     private var targetAlarmVolume: Int? = null
+
+    /** Active audio stream being adjusted and monitored (STREAM_MUSIC for BT, STREAM_ALARM for speaker). */
+    private var activeAudioStream: Int = AudioManager.STREAM_ALARM
 
     private var volumeObserver: ContentObserver? = null
 
@@ -148,8 +152,19 @@ class AlarmForegroundService : Service() {
             // Re-post now the snooze length is known, so the banner carries its
             // action rather than appearing without one.
             promoteToForeground(alarm, alarmId, settings.snoozeMinutes)
-            raiseVolumeFloor(settings.minimumVolumePercent)
-            startAudio(alarm?.soundUri?.let(Uri::parse), settings.volumeRampSeconds)
+
+            val bluetoothDevice = if (settings.bluetoothOnly) findConnectedBluetoothDevice() else null
+            val isBluetoothActive = settings.bluetoothOnly && bluetoothDevice != null
+            _isBluetoothOnlyActive.value = isBluetoothActive
+            if (settings.bluetoothOnly && bluetoothDevice == null) {
+                Log.w(TAG, "Bluetooth-only requested for alarm $alarmId, but no Bluetooth earphones connected. Falling back to phone speaker.")
+            } else if (isBluetoothActive) {
+                Log.i(TAG, "Bluetooth-only alarm active: routing to ${bluetoothDevice?.productName ?: "Bluetooth Device"}")
+            }
+
+            activeAudioStream = if (isBluetoothActive) AudioManager.STREAM_MUSIC else AudioManager.STREAM_ALARM
+            raiseVolumeFloor(settings.minimumVolumePercent, activeAudioStream)
+            startAudio(alarm?.soundUri?.let(Uri::parse), settings.volumeRampSeconds, if (isBluetoothActive) bluetoothDevice else null)
             if (alarm?.vibrate != false) startVibration()
 
             autoSilenceJob?.cancel()
@@ -228,6 +243,21 @@ class AlarmForegroundService : Service() {
     }
 
     /**
+     * Checks if a Bluetooth audio output device (A2DP, headset, or BLE audio) is connected.
+     */
+    private fun findConnectedBluetoothDevice(): AudioDeviceInfo? {
+        val audioManager = getSystemService<AudioManager>() ?: return null
+        val devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+        return devices.firstOrNull { device ->
+            device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                    (device.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
+                        device.type == AudioDeviceInfo.TYPE_BLE_SPEAKER))
+        }
+    }
+
+    /**
      * An alarm on a muted stream is no alarm at all, so the stream is lifted to
      * the configured floor for the duration and restored in [stopRinging] — the
      * user's own volume setting is borrowed, not overwritten.
@@ -235,21 +265,22 @@ class AlarmForegroundService : Service() {
      * In addition, this locks the active alarm volume floor so attempts to turn
      * the volume down while ringing are bypassed and reasserted.
      */
-    private fun raiseVolumeFloor(percent: Int) {
+    private fun raiseVolumeFloor(percent: Int, stream: Int = AudioManager.STREAM_ALARM) {
         val audioManager = getSystemService<AudioManager>() ?: return
+        activeAudioStream = stream
 
-        val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+        val max = audioManager.getStreamMaxVolume(stream)
         val effectivePercent = if (percent > 0) percent else 80
         val floor = (max * effectivePercent / 100).coerceIn(1, max)
-        val current = audioManager.getStreamVolume(AudioManager.STREAM_ALARM)
+        val current = audioManager.getStreamVolume(stream)
 
         if (current < floor) {
             // Raising the alarm stream is refused while some Do Not Disturb policies
             // are active; ringing quietly beats crashing.
             runCatching {
-                audioManager.setStreamVolume(AudioManager.STREAM_ALARM, floor, 0)
+                audioManager.setStreamVolume(stream, floor, 0)
                 restoreVolumeTo = current
-            }.onFailure { Log.w(TAG, "Could not raise the alarm stream volume", it) }
+            }.onFailure { Log.w(TAG, "Could not raise the audio stream volume", it) }
             targetAlarmVolume = floor
         } else {
             targetAlarmVolume = maxOf(current, floor)
@@ -287,11 +318,11 @@ class AlarmForegroundService : Service() {
         if (_ringingAlarmId.value == AlarmContract.NO_ALARM_ID) return
         val audioManager = getSystemService<AudioManager>() ?: return
         val target = targetAlarmVolume ?: return
-        val current = audioManager.getStreamVolume(AudioManager.STREAM_ALARM)
+        val current = audioManager.getStreamVolume(activeAudioStream)
         if (current < target) {
             Log.d(TAG, "Alarm volume decreased ($current < $target); reasserting volume")
             runCatching {
-                audioManager.setStreamVolume(AudioManager.STREAM_ALARM, target, 0)
+                audioManager.setStreamVolume(activeAudioStream, target, 0)
             }
         } else if (current > target) {
             // If volume was increased, update target to allow higher volume
@@ -305,19 +336,31 @@ class AlarmForegroundService : Service() {
         val previous = restoreVolumeTo ?: return
         restoreVolumeTo = null
         val audioManager = getSystemService<AudioManager>() ?: return
-        runCatching { audioManager.setStreamVolume(AudioManager.STREAM_ALARM, previous, 0) }
+        runCatching { audioManager.setStreamVolume(activeAudioStream, previous, 0) }
     }
 
-    private fun startAudio(soundUri: Uri?, rampSeconds: Int) {
+    private fun startAudio(
+        soundUri: Uri?,
+        rampSeconds: Int,
+        bluetoothDevice: AudioDeviceInfo? = null,
+    ) {
         val uri = soundUri
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
             ?: return
 
-        val attributes = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_ALARM)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .build()
+        val attributes = if (bluetoothDevice != null) {
+            // Media usage routes cleanly to Bluetooth earphones without forcing the phone's physical speaker
+            AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                .build()
+        } else {
+            AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+        }
 
         if (!requestAudioFocus(attributes)) {
             // Focus can be refused (e.g. an active phone call). Ring anyway — an
@@ -327,6 +370,9 @@ class AlarmForegroundService : Service() {
 
         mediaPlayer = MediaPlayer().apply {
             setAudioAttributes(attributes)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && bluetoothDevice != null) {
+                preferredDevice = bluetoothDevice
+            }
             isLooping = true
             setOnErrorListener { _, what, extra ->
                 Log.e(TAG, "MediaPlayer error what=$what extra=$extra")
@@ -527,6 +573,7 @@ class AlarmForegroundService : Service() {
         _ringingAlarm.value = null
         isWakeCheck = false
         _ringingIsWakeCheck.value = false
+        _isBluetoothOnlyActive.value = false
 
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -551,6 +598,10 @@ class AlarmForegroundService : Service() {
 
         private val _ringingAlarm = MutableStateFlow<Alarm?>(null)
         val ringingAlarm: StateFlow<Alarm?> = _ringingAlarm.asStateFlow()
+
+        private val _isBluetoothOnlyActive = MutableStateFlow(false)
+        /** True while alarm is playing exclusively to connected Bluetooth earphones. */
+        val isBluetoothOnlyActive: StateFlow<Boolean> = _isBluetoothOnlyActive.asStateFlow()
 
         private val _use24Hour = MutableStateFlow(true)
 

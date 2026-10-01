@@ -106,6 +106,10 @@ fun PermissionList(
         ActivityResultContracts.RequestPermission(),
     ) { viewModel.refresh() }
 
+    val bluetoothLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { viewModel.refresh() }
+
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -117,6 +121,15 @@ fun PermissionList(
                     when (state.permission) {
                         AlarmPermission.CAMERA ->
                             cameraLauncher.launch(android.Manifest.permission.CAMERA)
+
+                        AlarmPermission.BLUETOOTH -> {
+                            val runtimePermission = viewModel.bluetoothRuntimePermission()
+                            if (runtimePermission != null && !state.granted) {
+                                bluetoothLauncher.launch(runtimePermission)
+                            } else {
+                                settingsLauncher.launch(viewModel.appSettingsIntent())
+                            }
+                        }
 
                         AlarmPermission.NOTIFICATIONS -> {
                             val runtimePermission = viewModel.notificationRuntimePermission()

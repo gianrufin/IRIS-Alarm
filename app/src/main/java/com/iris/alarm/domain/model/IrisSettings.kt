@@ -65,6 +65,12 @@ data class IrisSettings(
 
     /** False until the first-run setup has been walked through. */
     val onboardingComplete: Boolean = false,
+
+    /**
+     * When true, alarms will only play sound through connected Bluetooth
+     * earphones/headphones, keeping the room quiet for others.
+     */
+    val bluetoothOnly: Boolean = false,
 ) {
     val autoSilenceMillis: Long get() = autoSilenceMinutes * 60_000L
 
@@ -76,6 +82,7 @@ data class IrisSettings(
     fun effectiveFor(alarm: Alarm?): IrisSettings = copy(
         autoSilenceMinutes = alarm?.autoSilenceMinutes ?: autoSilenceMinutes,
         volumeRampSeconds = alarm?.volumeRampSeconds ?: volumeRampSeconds,
+        bluetoothOnly = alarm?.bluetoothOnly ?: bluetoothOnly,
     )
 
     companion object {
