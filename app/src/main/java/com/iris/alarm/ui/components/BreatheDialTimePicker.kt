@@ -64,6 +64,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.iris.alarm.ui.theme.SpaceGrotesk
 import java.time.LocalTime
 import kotlin.math.PI
 import kotlin.math.abs
@@ -545,7 +546,7 @@ private fun FluidRollerColumn(
                     Text(
                         text = formatted,
                         style = MaterialTheme.typography.headlineMedium.copy(
-                            fontFamily = FontFamily.Monospace,
+                            fontFamily = SpaceGrotesk,
                             fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
                             letterSpacing = 1.sp,
                         ),

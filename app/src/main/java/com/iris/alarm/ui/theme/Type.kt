@@ -2,38 +2,22 @@ package com.iris.alarm.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.googlefonts.Font
-import androidx.compose.ui.text.googlefonts.GoogleFont
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import com.iris.alarm.R
 
 /**
- * Space Grotesk is fetched through the Downloadable Fonts provider, so no binary
- * ships in the APK. The certificate array the provider is validated against lives
- * in `res/values/font_certs.xml`.
- */
-private val provider = GoogleFont.Provider(
-    providerAuthority = "com.google.android.gms.fonts",
-    providerPackage = "com.google.android.gms",
-    certificates = R.array.com_google_android_gms_fonts_certs,
-)
-
-private val spaceGrotesk = GoogleFont("Space Grotesk")
-
-/**
- * Every weight is declared with `bestEffort = true` so the provider falls back to
- * the closest available cut (and ultimately to the system sans) if the download
- * has not landed yet — the clock must never render blank.
+ * Space Grotesk font family bundled locally in `res/font/space_grotesk.ttf`.
  */
 val SpaceGrotesk = FontFamily(
-    Font(googleFont = spaceGrotesk, fontProvider = provider, weight = FontWeight.Light),
-    Font(googleFont = spaceGrotesk, fontProvider = provider, weight = FontWeight.Normal),
-    Font(googleFont = spaceGrotesk, fontProvider = provider, weight = FontWeight.Medium),
-    Font(googleFont = spaceGrotesk, fontProvider = provider, weight = FontWeight.SemiBold),
-    Font(googleFont = spaceGrotesk, fontProvider = provider, weight = FontWeight.Bold),
+    Font(R.font.space_grotesk, FontWeight.Light),
+    Font(R.font.space_grotesk, FontWeight.Normal),
+    Font(R.font.space_grotesk, FontWeight.Medium),
+    Font(R.font.space_grotesk, FontWeight.SemiBold),
+    Font(R.font.space_grotesk, FontWeight.Bold),
 )
 
 /**
