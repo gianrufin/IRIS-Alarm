@@ -223,22 +223,22 @@ fun FluidTimePicker(
                         },
                     )
                 } else {
-                    val hour12 = to12Hour(currentHour)
                     val isPm = isPm(currentHour)
 
-                    // Hours (1..12)
+                    // Hours (endless 12-hour cycle across 24 hours: 1..12 AM -> 1..12 PM)
                     FluidRollerColumn(
-                        value = hour12,
-                        modulus = 12,
-                        startAtZero = false,
+                        value = currentHour,
+                        modulus = 24,
+                        startAtZero = true,
                         itemHeight = itemHeight,
                         columnWidth = 72.dp,
                         primaryColor = primaryColor,
                         testTag = "roller_hour",
-                        onValueSelected = { newHour12 ->
-                            val latestIsPm = isPm(currentHour)
-                            val new24 = to24Hour(newHour12, latestIsPm)
-                            currentOnTimeChange(new24, currentMinute)
+                        formatItem = { index ->
+                            to12Hour(index).toString().padStart(2, '0')
+                        },
+                        onValueSelected = { newHour24 ->
+                            currentOnTimeChange(newHour24, currentMinute)
                         },
                     )
 
@@ -269,8 +269,11 @@ fun FluidTimePicker(
                         itemHeight = itemHeight,
                         primaryColor = primaryColor,
                         onToggle = { newIsPm ->
-                            val current12 = to12Hour(currentHour)
-                            val new24 = to24Hour(current12, newIsPm)
+                            val new24 = if (newIsPm) {
+                                if (currentHour < 12) currentHour + 12 else currentHour
+                            } else {
+                                if (currentHour >= 12) currentHour - 12 else currentHour
+                            }
                             currentOnTimeChange(new24, currentMinute)
                         },
                     )
@@ -317,7 +320,8 @@ fun FluidTimePicker(
                         Text(
                             text = text,
                             style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = SpaceGrotesk,
+                                fontWeight = FontWeight.Normal,
                             ),
                             color = MaterialTheme.colorScheme.onSurface,
                         )
@@ -376,6 +380,10 @@ private fun FluidRollerColumn(
     columnWidth: Dp,
     primaryColor: Color,
     testTag: String,
+    formatItem: (Int) -> String = { index ->
+        val displayedNum = if (startAtZero) index else (index + 1)
+        displayedNum.toString().padStart(2, '0')
+    },
     onValueSelected: (Int) -> Unit,
 ) {
     val density = LocalDensity.current
@@ -395,8 +403,14 @@ private fun FluidRollerColumn(
     // Synchronize if external state changes (e.g. from nudge chips or presets)
     LaunchedEffect(value, modulus, startAtZero) {
         if (value != lastReportedValue && !isInteracting) {
-            lastReportedValue = value
             val target = if (startAtZero) value else (value - 1)
+            // If the displayed text at the current offset is already identical
+            // (e.g. toggling AM/PM from 10 AM to 10 PM where both display "10"), don't spin the wheel
+            if (formatItem(value) == formatItem(lastReportedValue)) {
+                lastReportedValue = value
+                return@LaunchedEffect
+            }
+            lastReportedValue = value
             val shortest = findShortestOffset(animOffset.value, target, modulus)
             animOffset.animateTo(
                 targetValue = shortest,
@@ -506,7 +520,7 @@ private fun FluidRollerColumn(
                 } else {
                     ((itemRawIndex % modulus) + modulus) % modulus + 1
                 }
-                val formatted = displayValue.toString().padStart(2, '0')
+                val formatted = formatItem(displayValue)
                 val isSelected = absDiff < 0.35f
 
                 Box(
@@ -547,7 +561,7 @@ private fun FluidRollerColumn(
                         text = formatted,
                         style = MaterialTheme.typography.headlineMedium.copy(
                             fontFamily = SpaceGrotesk,
-                            fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                             letterSpacing = 1.sp,
                         ),
                         color = if (isSelected) primaryColor else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -639,7 +653,8 @@ private fun FluidAmPmToggle(
                 Text(
                     text = "AM",
                     style = MaterialTheme.typography.labelMedium.copy(
-                        fontWeight = FontWeight.Black,
+                        fontFamily = SpaceGrotesk,
+                        fontWeight = FontWeight.SemiBold,
                         letterSpacing = 1.sp,
                     ),
                     color = if (!isPm) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -664,7 +679,8 @@ private fun FluidAmPmToggle(
                 Text(
                     text = "PM",
                     style = MaterialTheme.typography.labelMedium.copy(
-                        fontWeight = FontWeight.Black,
+                        fontFamily = SpaceGrotesk,
+                        fontWeight = FontWeight.SemiBold,
                         letterSpacing = 1.sp,
                     ),
                     color = if (isPm) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -737,7 +753,10 @@ private fun QuickNudgeChip(
     ) {
         Text(
             text = text,
-            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontFamily = SpaceGrotesk,
+                fontWeight = FontWeight.Normal,
+            ),
             color = MaterialTheme.colorScheme.primary,
         )
     }

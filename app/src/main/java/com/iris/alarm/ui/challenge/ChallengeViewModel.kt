@@ -84,18 +84,35 @@ class ChallengeViewModel @Inject constructor(
 
     private var lumenJob: Job? = null
 
-    /** Guards against a recomposition restarting an already-resolved challenge. */
-    private var started = false
+    private var startedAlarmId: Long? = null
+    private var startedChallenge: VisionChallenge? = null
+    private var startedSignature: String? = null
 
     /** Targets already offered this morning, so a swap always produces a new one. */
     private val offeredTargets = mutableSetOf<HuntTarget>()
 
+    /** Resets the challenge state when the challenge screen is dismissed or disposed. */
+    fun reset() {
+        startedAlarmId = null
+        startedChallenge = null
+        startedSignature = null
+        lumenJob?.cancel()
+        lumenJob = null
+        _uiState.value = ChallengeUiState()
+    }
+
     /** Call once with the ringing alarm; resolves a runnable challenge and starts it. */
     fun start(alarm: Alarm?) {
-        if (started) return
-        started = true
-
         val requested = alarm?.challenge ?: VisionChallenge.SMILE
+        val sig = alarm?.anchorSignature
+        val id = alarm?.id
+
+        if (startedAlarmId == id && startedChallenge == requested && startedSignature == sig) {
+            return
+        }
+        startedAlarmId = id
+        startedChallenge = requested
+        startedSignature = sig
 
         // An anchor with no captured spot can never be matched — it would ring
         // until the auto-silence timeout. Fall back to something runnable and say

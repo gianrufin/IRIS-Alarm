@@ -91,6 +91,6 @@ class AnchorAnalyzer(
 
     private companion object {
         const val SMOOTHING = 0.6f
-        const val WARM_SIMILARITY = 0.6f
+        const val WARM_SIMILARITY = 0.55f
     }
 }

@@ -106,12 +106,22 @@ fun ChallengeScreen(
     val isWakeCheck by AlarmForegroundService.ringingIsWakeCheck.collectAsStateWithLifecycle()
     var splashDone by remember { mutableStateOf(practice) }
 
-    val challenge = state.challenge
+    val challenge = if (state.notice != null && state.challenge != (alarm?.challenge ?: state.challenge)) {
+        state.challenge
+    } else {
+        alarm?.challenge ?: state.challenge
+    }
     val progress = state.progress
     val cameraPermission = rememberPermissionState(android.Manifest.permission.CAMERA)
     val needsCamera = challenge.needsCamera
 
-    LaunchedEffect(alarm?.id, alarm?.challenge) {
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.reset()
+        }
+    }
+
+    LaunchedEffect(alarm?.id, alarm?.challenge, alarm?.anchorSignature) {
         viewModel.start(alarm)
     }
 
@@ -194,6 +204,12 @@ fun ChallengeScreen(
                                 Color.Black.copy(alpha = 0.62f),
                                 Color.Black.copy(alpha = 0.16f),
                                 Color.Black.copy(alpha = 0.68f),
+                            )
+                        } else if (challenge == VisionChallenge.ANCHOR) {
+                            listOf(
+                                Color.Black.copy(alpha = 0.45f),
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.60f),
                             )
                         } else {
                             listOf(

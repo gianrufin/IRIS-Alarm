@@ -104,7 +104,7 @@ fun BluetoothEarphonesNotice(
                     "NO EARPHONES CONNECTED RIGHT NOW"
                 },
                 style = MaterialTheme.typography.labelSmall.copy(
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.Normal,
                     letterSpacing = 0.5.sp,
                 ),
                 color = if (isConnected) {

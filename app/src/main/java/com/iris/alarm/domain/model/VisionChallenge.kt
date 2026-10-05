@@ -67,10 +67,10 @@ object ChallengeThresholds {
      * never exact and the light will have changed since capture, so this is a
      * "clearly the same place" bar rather than a "pixel identical" one.
      */
-    const val ANCHOR_SIMILARITY = 0.82f
+    const val ANCHOR_SIMILARITY = 0.72f
 
     /** Consecutive qualifying frames required before an anchor match passes. */
-    const val ANCHOR_FRAME_STREAK = 4
+    const val ANCHOR_FRAME_STREAK = 2
 
     /**
      * Confidence the labeller must report for the hunted object. Deliberately
